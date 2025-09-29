@@ -17,8 +17,6 @@ jobs:
     name: Migration Validation
     runs-on: ubuntu-latest
 
-    # Note: Using Neon database instead of local PostgreSQL service
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -87,7 +85,7 @@ jobs:
       run: |
         # Check that all expected tables exist
         psql $DATABASE_URL -c "\dt" || echo "No tables found - this might be expected for new projects"
-        
+
         # Check migration history
         sqlx migrate info
       env:
@@ -115,7 +113,7 @@ jobs:
             issue_number: context.issue.number,
           });
 
-          const botComment = comments.find(comment => 
+          const botComment = comments.find(comment =>
             comment.user.type === 'Bot' && comment.body.includes('Migration Check')
           );
 

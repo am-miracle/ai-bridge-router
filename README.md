@@ -43,6 +43,21 @@ This project solves these issues by aggregating available cross-chain bridge ser
 
 ## Development Guidelines
 
+### Pre-commit Hooks Setup
+
+This project uses pre-commit hooks (similar to Husky + Prettier) to ensure code quality:
+
+```bash
+# Install pre-commit (one-time setup)
+pip install pre-commit
+
+# Setup hooks for this project
+./scripts/setup-hooks.sh
+
+# Or manually:
+pre-commit install
+```
+
 ### Folder Structure (Backend)
 
 ```

@@ -1,0 +1,68 @@
+# Pre-commit hooks for Rust project
+# Install with: pip install pre-commit
+# Setup with: pre-commit install
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      # Check for large files
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+      # Check for merge conflicts
+      - id: check-merge-conflict
+
+      # Check for debug statements
+      - id: debug-statements
+
+      # Check for TODO/FIXME comments
+      - id: check-toml
+
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+
+      # Remove trailing whitespace (auto-fix)
+      - id: trailing-whitespace
+
+      # Check YAML syntax
+      - id: check-yaml
+
+      # Check JSON syntax
+      - id: check-json
+
+      # Check for private keys
+      - id: detect-private-key
+
+  # Local Rust commands
+  - repo: local
+    hooks:
+      # Format code with rustfmt
+      - id: rustfmt
+        name: rustfmt
+        entry: rustfmt
+        language: system
+        types: [rust]
+        args: [--edition, "2021"]
+
+      # Run clippy linter
+      - id: clippy
+        name: clippy
+        entry: cargo clippy
+        language: system
+        types: [rust]
+        args: [--all-targets, --all-features, --, -D, warnings]
+        pass_filenames: false
+
+      # Check Cargo.toml format
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      # Run tests (skip for now to avoid blocking commits)
+      # - id: cargo-test
+      #   args: [--lib, --bins]

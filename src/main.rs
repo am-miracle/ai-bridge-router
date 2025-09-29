@@ -5,20 +5,17 @@ use axum::{
 use dotenvy::dotenv;
 use std::env;
 use tower::ServiceBuilder;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod cache;
 mod config;
 mod db;
-mod cache;
+mod models;
 mod routes;
 mod services;
-mod models;
-mod utils;
 mod telemetry;
+mod utils;
 
 use routes::health::health_routes;
 
@@ -66,13 +63,11 @@ async fn main() -> anyhow::Result<()> {
         .allow_credentials(true);
 
     // Build the application router
-    let app = Router::new()
-        .merge(health_routes())
-        .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(cors),
-        );
+    let app = Router::new().merge(health_routes()).layer(
+        ServiceBuilder::new()
+            .layer(TraceLayer::new_for_http())
+            .layer(cors),
+    );
 
     // Start the server
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", host, port)).await?;
