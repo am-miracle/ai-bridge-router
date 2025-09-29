@@ -122,8 +122,9 @@ jobs:
         target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
-          - x86_64-apple-darwin
-          - x86_64-pc-windows-msvc
+          # Note: macOS and Windows cross-compilation removed due to native dependency issues
+          # - x86_64-apple-darwin  # Fails with blst crate compilation
+          # - x86_64-pc-windows-msvc  # May have similar issues
 
     steps:
     - name: Checkout code
@@ -153,4 +154,68 @@ jobs:
       with:
         name: bridge-router-${{ matrix.target }}
         path: target/${{ matrix.target }}/release/bridge-router*
+        retention-days: 7
+
+  # Build for macOS using native runner
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          macos-cargo-
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: bridge-router-macos
+        path: target/release/bridge-router*
+        retention-days: 7
+
+  # Build for Windows using native runner
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          windows-cargo-
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: bridge-router-windows
+        path: target/release/bridge-router*.exe
         retention-days: 7

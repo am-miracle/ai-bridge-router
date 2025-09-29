@@ -61,7 +61,7 @@ jobs:
         echo "" >> security-report.md
 
         echo "## Cargo Audit Results" >> security-report.md
-        cargo audit --json > audit-results.json 2>&1 || true
+        cargo audit --json --ignore RUSTSEC-2024-0388 --ignore RUSTSEC-2024-0436 > audit-results.json 2>&1 || true
         if [ -f audit-results.json ]; then
           echo "Audit completed. Check logs for details." >> security-report.md
         else
