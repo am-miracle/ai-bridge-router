@@ -1,0 +1,170 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Main CI job - runs on every push/PR
+  ci:
+    name: Rust CI
+    runs-on: ubuntu-latest
+
+    # Note: Using Neon database (with local PostgreSQL fallback)
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: bridge_router_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Install SQLx CLI
+      run: cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+    - name: Setup test database
+      run: |
+        if [ -n "$DATABASE_URL" ]; then
+          sqlx database create
+          sqlx migrate run
+        else
+          echo "No DATABASE_URL provided, skipping database setup"
+        fi
+      env:
+        DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run tests
+      run: |
+        if [ -n "$DATABASE_URL" ]; then
+          cargo test --all-features
+        else
+          echo "No DATABASE_URL provided, running tests without database"
+          cargo test --lib --bins
+        fi
+      env:
+        DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+        REDIS_URL: ${{ secrets.TEST_REDIS_URL || 'redis://localhost:6379' }}
+        RUST_LOG: debug
+
+    - name: Build
+      run: cargo build --all-features --release
+
+    - name: Upload coverage reports
+      if: success()
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./target/coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  # Security audit job
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: cargo audit
+
+    - name: Check for known vulnerabilities
+      run: cargo audit --deny warnings
+
+  # Build for multiple targets
+  build-matrix:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - x86_64-apple-darwin
+          - x86_64-pc-windows-msvc
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        target: ${{ matrix.target }}
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+    - name: Build
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: bridge-router-${{ matrix.target }}
+        path: target/${{ matrix.target }}/release/bridge-router*
+        retention-days: 7

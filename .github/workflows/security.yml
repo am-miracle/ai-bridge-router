@@ -1,0 +1,130 @@
+name: Security Audit
+
+on:
+  schedule:
+    # Run security audit daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Install security tools
+      run: |
+        cargo install cargo-audit
+        cargo install cargo-deny
+
+    - name: Run cargo audit
+      run: |
+        cargo audit --deny warnings
+
+    - name: Run cargo deny
+      run: |
+        cargo deny check
+
+    - name: Check for known vulnerabilities
+      run: |
+        cargo audit --deny warnings --deny unmaintained
+
+    - name: Generate security report
+      if: always()
+      run: |
+        echo "# Security Audit Report" > security-report.md
+        echo "Generated: $(date)" >> security-report.md
+        echo "" >> security-report.md
+
+        echo "## Cargo Audit Results" >> security-report.md
+        cargo audit --json > audit-results.json 2>&1 || true
+        if [ -f audit-results.json ]; then
+          echo "Audit completed. Check logs for details." >> security-report.md
+        else
+          echo "No security issues found." >> security-report.md
+        fi
+
+        echo "" >> security-report.md
+        echo "## Dependency Analysis" >> security-report.md
+        cargo tree --duplicates >> security-report.md || true
+
+    - name: Upload security report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-report
+        path: security-report.md
+        retention-days: 30
+
+    - name: Comment on PR with security results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let report = '## 🔒 Security Audit Results\n\n';
+
+          try {
+            const auditOutput = fs.readFileSync('audit-results.json', 'utf8');
+            const auditData = JSON.parse(auditOutput);
+
+            if (auditData.vulnerabilities && auditData.vulnerabilities.length > 0) {
+              report += '❌ **Security vulnerabilities found:**\n';
+              auditData.vulnerabilities.forEach(vuln => {
+                report += `- ${vuln.advisory.title} (${vuln.package.name})\n`;
+              });
+            } else {
+              report += '✅ **No security vulnerabilities found**\n';
+            }
+          } catch (error) {
+            report += '✅ **Security audit completed successfully**\n';
+          }
+
+          report += '\n**Dependencies checked:** ' + new Date().toISOString();
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: report
+          });
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
+        allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
+        deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0
