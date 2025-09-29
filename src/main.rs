@@ -1,6 +1,6 @@
 use axum::{
-    http::{HeaderValue, Method},
     Router,
+    http::{HeaderValue, Method},
 };
 use dotenvy::dotenv;
 use std::env;

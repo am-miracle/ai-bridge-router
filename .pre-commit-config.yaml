@@ -41,10 +41,11 @@ repos:
       # Format code with rustfmt
       - id: rustfmt
         name: rustfmt
-        entry: rustfmt
+        entry: cargo fmt
         language: system
         types: [rust]
-        args: [--edition, "2021"]
+        args: [--all]
+        pass_filenames: false
 
       # Run clippy linter
       - id: clippy
