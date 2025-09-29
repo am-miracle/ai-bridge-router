@@ -12,7 +12,6 @@ Today, users face a fragmented experience when bridging assets:
 
 This project solves these issues by aggregating available cross-chain bridge services into a single interface and applying real-time analytics and AI-driven scoring to recommend the best route for a given transfer.
 
-
 ## Key Features
 
 * **Bridge Aggregation**
@@ -33,7 +32,6 @@ This project solves these issues by aggregating available cross-chain bridge ser
 * **Unified Claim & Execution**
   Provides a single button for routing or claiming, redirecting seamlessly to the user’s wallet or the selected bridge’s execution flow.
 
----
 
 ## Technical Architecture
 
@@ -121,7 +119,7 @@ We welcome contributions! To keep the project organized, please follow these ste
 
 ### Branching Model
 
-* `main`: Stable branch.
+* `master`: Stable branch.
 * `dev`: Active development branch.
 * Feature branches: `feature/<name>` (e.g., `feature/bridge-aggregator`).
 * Bugfix branches: `fix/<name>`.

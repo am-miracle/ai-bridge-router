@@ -5,9 +5,9 @@ on:
     # Run security audit daily at 2 AM UTC
     - cron: '0 2 * * *'
   push:
-    branches: [ main, dev ]
+    branches: [ master, dev ]
   pull_request:
-    branches: [ main, dev ]
+    branches: [ master, dev ]
   workflow_dispatch:
 
 env:
