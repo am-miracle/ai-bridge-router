@@ -33,32 +33,6 @@ This project solves these issues by aggregating available cross-chain bridge ser
   Provides a single button for routing or claiming, redirecting seamlessly to the user’s wallet or the selected bridge’s execution flow.
 
 
-## Technical Architecture
-
-### Backend (Rust)
-
-The backend is implemented in Rust for performance, safety, and scalability. It is built on:
-
-* **Axum** for the web framework and routing.
-* **Tokio** for asynchronous runtime.
-* **SQLx** for PostgreSQL database interaction.
-* **Redis** for caching frequently requested bridge data.
-* **Tracing** for structured logging and observability.
-
-The backend handles:
-
-* Fetching and normalizing data from multiple bridge APIs.
-* Managing a historical database of exploits, audits, and bridge reliability.
-* Exposing REST API endpoints for quotes, health checks, and recommendations.
-* Running the scoring engine to evaluate and rank bridge routes.
-
-### Data Sources
-
-* **Bridge APIs**: Direct integration with major bridges (Connext, Hop, Axelar, Wormhole).
-* **Security Metadata**: Aggregated from audit reports, public incident reports, and trusted registries.
-* **Gas and Chain Metrics**: Pulled from RPC endpoints and block explorers.
-
-
 ## Future Extensions
 
 * Machine learning-based scoring (trained on historical data).
