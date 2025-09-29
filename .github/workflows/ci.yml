@@ -121,7 +121,8 @@ jobs:
       matrix:
         target:
           - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
+          # Note: musl target removed due to missing cross-compiler
+          # - x86_64-unknown-linux-musl  # Requires musl-gcc cross-compiler
           # Note: macOS and Windows cross-compilation removed due to native dependency issues
           # - x86_64-apple-darwin  # Fails with blst crate compilation
           # - x86_64-pc-windows-msvc  # May have similar issues
