@@ -134,12 +134,10 @@ pub async fn validate_api_key(api_key: &str, app_state: &Arc<AppState>) -> AppRe
     }
 
     // Update last used timestamp
-    sqlx::query!(
-        "UPDATE api_keys SET last_used_at = NOW() WHERE id = $1",
-        api_key_record.id
-    )
-    .execute(app_state.db())
-    .await?;
+    sqlx::query("UPDATE api_keys SET last_used_at = NOW() WHERE id = $1")
+        .bind(api_key_record.id)
+        .execute(app_state.db())
+        .await?;
 
     info!("API key validated for: {}", api_key_record.name);
 
@@ -339,7 +337,7 @@ pub async fn create_api_key(
 
     let permissions = serde_json::to_value(&request.permissions)?;
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO api_keys (
             id, key_hash, name, description, permissions,
@@ -347,20 +345,18 @@ pub async fn create_api_key(
             created_at, expires_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
         "#,
-        api_key_id,
-        key_hash,
-        request.name,
-        request.description,
-        permissions,
-        request.rate_limit_per_minute.unwrap_or(100),
-        request.rate_limit_per_hour.unwrap_or(1000),
-        true,
-        request.expires_at
     )
+    .bind(api_key_id)
+    .bind(key_hash)
+    .bind(request.name.clone())
+    .bind(request.description.clone())
+    .bind(permissions)
+    .bind(request.rate_limit_per_minute.unwrap_or(100))
+    .bind(request.rate_limit_per_hour.unwrap_or(1000))
+    .bind(true)
+    .bind(request.expires_at)
     .execute(app_state.db())
     .await?;
-
-    info!("Created new API key: {}", request.name);
 
     Ok(ApiKeyResponse {
         id: api_key_id,
@@ -422,12 +418,10 @@ pub async fn list_api_keys(app_state: &Arc<AppState>) -> AppResult<Vec<ApiKeyRes
 
 /// Revoke an API key
 pub async fn revoke_api_key(api_key_id: Uuid, app_state: &Arc<AppState>) -> AppResult<()> {
-    sqlx::query!(
-        "UPDATE api_keys SET is_active = false WHERE id = $1",
-        api_key_id
-    )
-    .execute(app_state.db())
-    .await?;
+    sqlx::query("UPDATE api_keys SET is_active = false WHERE id = $1")
+        .bind(api_key_id)
+        .execute(app_state.db())
+        .await?;
 
     info!("Revoked API key: {}", api_key_id);
     Ok(())
