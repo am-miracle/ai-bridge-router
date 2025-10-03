@@ -1,0 +1,5 @@
+{
+  "description": "SELECT id, bridge, audit_firm, audit_date, result, created_at\n            FROM audit_reports\n            ORDER BY audit_date DESC, bridge ASC",
+  "query": "SELECT id, bridge, audit_firm, audit_date, result, created_at\n            FROM audit_reports\n            ORDER BY audit_date DESC, bridge ASC",
+  "hash": "15c9bb0c7b7f32c87a2f8c3a5c4a8a4e4e8c7b5d5f1a8b9c5d3e2f4a7b8c9d0e1f"
+}

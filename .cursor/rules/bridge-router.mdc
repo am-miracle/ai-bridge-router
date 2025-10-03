@@ -14,3 +14,4 @@ alwaysApply: true
 - "Logging must be via tracing, not println!."
 - "Tests should be in /tests with integration focus (health_check, routes)."
 - "Use feature flags in Cargo.toml for optional components (ml_scoring, telemetry)."
+- When you implement and it doesn't work, breakdown why it is not working and don't restort to simpler approach
