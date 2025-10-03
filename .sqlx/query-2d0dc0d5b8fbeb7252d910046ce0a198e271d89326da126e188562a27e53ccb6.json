@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO api_keys (\n            id, key_hash, name, description, permissions,\n            rate_limit_per_minute, rate_limit_per_hour, is_active,\n            created_at, expires_at\n        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2d0dc0d5b8fbeb7252d910046ce0a198e271d89326da126e188562a27e53ccb6"
+}
