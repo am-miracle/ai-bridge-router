@@ -42,7 +42,7 @@ async fn test_hop_quote_response_parsing() {
         "amountOutMin": "743633",
         "destinationAmountOutMin": "742915",
         "bonderFee": "250515",
-        "estimatedReceived": "747908",
+        "estimatedRecieved": "747908",
         "deadline": 1679862208,
         "destinationDeadline": 1679862208
     }"#;
@@ -53,7 +53,7 @@ async fn test_hop_quote_response_parsing() {
     assert_eq!(response["amountIn"], "1000000");
     assert_eq!(response["slippage"], 0.5);
     assert_eq!(response["bonderFee"], "250515");
-    assert_eq!(response["estimatedReceived"], "747908");
+    assert_eq!(response["estimatedRecieved"], "747908");
     assert_eq!(response["deadline"], 1679862208);
 }
 

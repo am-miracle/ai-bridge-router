@@ -123,7 +123,7 @@ pub fn auth_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/auth/api-keys", post(create_api_key_endpoint))
         .route("/auth/api-keys", get(list_api_keys_endpoint))
-        .route("/auth/api-keys/:id", delete(revoke_api_key_endpoint))
+        .route("/auth/api-keys/{id}", delete(revoke_api_key_endpoint))
         .route("/auth/me", get(get_api_key_info))
         .route("/auth/health", get(auth_health_check))
 }

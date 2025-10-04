@@ -109,6 +109,7 @@ mod quotes_integration_tests {
                     liquidity: "500,000 USDC".to_string(),
                 },
             ],
+            errors: Vec::new(),
         };
 
         // Test serialization
@@ -118,12 +119,14 @@ mod quotes_integration_tests {
         assert!(json.contains("Hop"));
         assert!(json.contains("0.002"));
         assert!(json.contains("0.0015"));
+        assert!(!json.contains("\"errors\":["));
 
         // Test deserialization
         let deserialized: AggregatedQuotesResponse = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.routes.len(), 2);
         assert_eq!(deserialized.routes[0].bridge, "Connext");
         assert_eq!(deserialized.routes[1].bridge, "Hop");
+        assert!(deserialized.errors.is_empty());
     }
 
     #[test]

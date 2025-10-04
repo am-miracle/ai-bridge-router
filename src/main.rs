@@ -4,7 +4,7 @@ use axum::{
     middleware::from_fn_with_state,
 };
 use dotenvy::dotenv;
-use std::{env, sync::Arc};
+use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
@@ -20,7 +20,9 @@ mod telemetry;
 mod utils;
 
 use crate::app_state::AppState;
+use crate::config::Settings;
 use crate::middleware::auth::{admin_auth_middleware, security_auth_middleware};
+use crate::middleware::trace_id::trace_id_middleware;
 use crate::telemetry::{init_logging, init_metrics, log_shutdown, log_startup};
 use routes::{auth_routes, health_routes, quotes_routes, security_routes};
 
@@ -28,86 +30,78 @@ use routes::{auth_routes, health_routes, quotes_routes, security_routes};
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
-    // Initialize structured logging
-    init_logging()?;
+    // Load configuration first
+    let settings =
+        Settings::new().map_err(|e| anyhow::anyhow!("Failed to load configuration: {}", e))?;
+
+    // Initialize structured logging with settings
+    init_logging(&settings)?;
 
     // Initialize Prometheus metrics
     init_metrics()?;
 
-    // Create application state with database and Redis connections
+    // Create application state with configuration
     let app_state = Arc::new(AppState::new().await?);
 
-    // Get server configuration
-    let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = env::var("PORT")
-        .unwrap_or_else(|_| "8080".to_string())
-        .parse::<u16>()
-        .expect("PORT must be a valid u16");
-
-    // Configure CORS
-    let allowed_origins = env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:3000,http://0.0.0.0:3000".to_string())
-        .split(',')
+    // Configure CORS using settings
+    let allowed_origins = settings
+        .cors
+        .allowed_origins
+        .iter()
         .map(|origin| origin.trim().parse::<HeaderValue>().unwrap())
         .collect::<Vec<_>>();
 
-    let cors = CorsLayer::new()
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        .allow_origin(allowed_origins)
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::ACCEPT,
-        ])
-        .allow_credentials(true);
+    // Parse allowed methods from settings
+    let allowed_methods: Vec<Method> = settings
+        .cors
+        .allowed_methods
+        .iter()
+        .map(|method| method.parse().unwrap_or(Method::GET))
+        .collect();
 
-    // Build the application router with all middleware layers
+    let cors = CorsLayer::new()
+        .allow_methods(allowed_methods)
+        .allow_origin(allowed_origins)
+        .allow_headers(
+            settings
+                .cors
+                .allowed_headers
+                .iter()
+                .map(|h| h.parse().unwrap())
+                .collect::<Vec<_>>(),
+        )
+        .allow_credentials(settings.cors.allow_credentials);
+
+    // Build the application router with selective middleware layers
     let app = Router::new()
         .merge(health_routes())
         .merge(quotes_routes())
-        .merge(security_routes())
-        .merge(auth_routes())
+        // Protected routes with specific authentication
+        .merge(security_routes().route_layer(from_fn_with_state(
+            app_state.clone(),
+            security_auth_middleware,
+        )))
+        .merge(
+            auth_routes().route_layer(from_fn_with_state(app_state.clone(), admin_auth_middleware)),
+        )
         .with_state(app_state.clone())
         .layer(
             ServiceBuilder::new()
+                // Trace ID middleware (outermost - runs first)
+                .layer(axum::middleware::from_fn(trace_id_middleware))
                 // Tracing middleware for request/response logging
                 .layer(TraceLayer::new_for_http())
                 // CORS middleware
                 .layer(cors),
-        )
-        .route_layer(from_fn_with_state(
-            app_state.clone(),
-            security_auth_middleware,
-        ))
-        .route_layer(from_fn_with_state(app_state.clone(), admin_auth_middleware));
+        );
 
-    // Start the server
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", host, port)).await?;
+    // Start the server using settings
+    let server_address = settings.server_address();
+    let listener = tokio::net::TcpListener::bind(&server_address).await?;
 
     // Log startup information
-    log_startup(&host, port);
-    tracing::info!("Health check available at http://{}:{}/health", host, port);
-    tracing::info!(
-        "Metrics endpoint available at http://{}:{}/metrics",
-        host,
-        port
-    );
-    tracing::info!(
-        "Security endpoints available at http://{}:{}/security/* (API key required)",
-        host,
-        port
-    );
-    tracing::info!(
-        "Auth endpoints available at http://{}:{}/auth/* (admin API key required)",
-        host,
-        port
-    );
+    log_startup(&settings.server.host, settings.server.port);
+    tracing::info!("Health check available at http://{}/health", server_address);
 
     // Set up graceful shutdown
     let shutdown_signal = async {
@@ -121,6 +115,8 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal)
         .await?;
+
+    tracing::info!("Axum server has fully shut down and main is exiting.");
 
     Ok(())
 }

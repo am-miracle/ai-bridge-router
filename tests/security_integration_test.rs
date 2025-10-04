@@ -2,6 +2,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use bridge_router::config::Settings;
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -494,10 +495,13 @@ mod security_integration_tests {
         let pool = PgPool::connect_lazy(database_url).unwrap();
 
         // Create a mock cache client
-        let cache_client = CacheClient::new().await.unwrap_or_else(|_| {
-            // If Redis is not available, skip the test
-            panic!("Cannot create cache client for tests - Redis not available")
-        });
+        let settings = Settings::new().unwrap_or_else(|_| Settings::default());
+        let cache_client = CacheClient::with_settings(&settings)
+            .await
+            .unwrap_or_else(|_| {
+                // If Redis is not available, skip the test
+                panic!("Cannot create cache client for tests - Redis not available")
+            });
 
         AppState {
             start_time: Instant::now(),

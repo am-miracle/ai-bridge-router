@@ -1,4 +1,3 @@
-use std::time::Duration;
 use tracing::{error, info, warn};
 
 pub mod axelar;
@@ -7,76 +6,144 @@ pub mod hop;
 
 use crate::cache::CacheClient;
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
+use std::time::Duration;
 
 /// Get quotes from all available bridges in parallel
+use tokio::time::timeout;
+pub struct BridgeQuoteWithError {
+    pub bridge: String,
+    pub quote: Option<BridgeQuote>,
+    pub error: Option<String>,
+}
+
 pub async fn get_all_bridge_quotes(
     request: &BridgeQuoteRequest,
     config: &BridgeClientConfig,
-) -> Vec<BridgeQuote> {
+) -> Vec<BridgeQuoteWithError> {
     info!(
         "Fetching bridge quotes for {} from {} to {}",
         request.asset, request.from_chain, request.to_chain
     );
 
-    // Execute all bridge requests in parallel
-    let (everclear_result, hop_result, axelar_result) = tokio::join!(
-        everclear::get_quote(request, config),
-        hop::get_quote(request, config),
-        axelar::get_quote(request, config)
-    );
+    // Per-bridge timeouts (in seconds)
+    let bridge_timeout = Duration::from_secs(3);
 
-    let mut quotes = Vec::new();
+    let everclear_fut = timeout(bridge_timeout, everclear::get_quote(request, config));
+    let hop_fut = timeout(bridge_timeout, hop::get_quote(request, config));
+    let axelar_fut = timeout(bridge_timeout, axelar::get_quote(request, config));
 
-    // Collect successful quotes and log errors
+    let (everclear_result, hop_result, axelar_result) =
+        tokio::join!(everclear_fut, hop_fut, axelar_fut);
+
+    let mut results = Vec::new();
+
+    // Everclear
     match everclear_result {
-        Ok(quote) => {
+        Ok(Ok(quote)) => {
             info!(
                 "Successfully got Everclear quote: fee={}, time={}s",
                 quote.fee, quote.est_time
             );
-            quotes.push(quote);
+            results.push(BridgeQuoteWithError {
+                bridge: "Everclear".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             warn!("Everclear quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Everclear".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "Everclear quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Everclear".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
         }
     }
 
+    // Hop
     match hop_result {
-        Ok(quote) => {
+        Ok(Ok(quote)) => {
             info!(
                 "Successfully got Hop quote: fee={}, time={}s",
                 quote.fee, quote.est_time
             );
-            quotes.push(quote);
+            results.push(BridgeQuoteWithError {
+                bridge: "Hop".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             warn!("Hop quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Hop".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!("Hop quote timed out after {}s", bridge_timeout.as_secs());
+            results.push(BridgeQuoteWithError {
+                bridge: "Hop".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
         }
     }
 
+    // Axelar
     match axelar_result {
-        Ok(quote) => {
+        Ok(Ok(quote)) => {
             info!(
                 "Successfully got Axelar quote: fee={}, time={}s",
                 quote.fee, quote.est_time
             );
-            quotes.push(quote);
+            results.push(BridgeQuoteWithError {
+                bridge: "Axelar".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             warn!("Axelar quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Axelar".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!("Axelar quote timed out after {}s", bridge_timeout.as_secs());
+            results.push(BridgeQuoteWithError {
+                bridge: "Axelar".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
         }
     }
 
-    if quotes.is_empty() {
+    if results.iter().all(|r| r.quote.is_none()) {
         error!("No bridge quotes were successfully retrieved");
     } else {
-        info!("Successfully retrieved {} bridge quotes", quotes.len());
+        info!(
+            "Successfully retrieved {} bridge quotes",
+            results.iter().filter(|r| r.quote.is_some()).count()
+        );
     }
 
-    quotes
+    results
 }
-
-/// Get cached quote or fetch fresh quote with caching
 async fn get_cached_quote<F, Fut>(
     cache_key: &str,
     cache: &Option<CacheClient>,

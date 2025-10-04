@@ -10,8 +10,11 @@ pub mod telemetry;
 pub mod utils;
 
 pub use app_state::*;
-pub use cache::*;
-pub use config::*;
+pub use cache::{CacheClient, CacheStats, RedisMonitoringInfo};
+pub use config::{
+    BridgeConfig, CacheConfig, ConfigValidationError, CorsConfig, LoggingConfig, ServerConfig,
+    Settings, SettingsRedisConfig,
+};
 pub use db::*;
 pub use models::{bridge, quote, security::*};
 pub use routes::{health_routes, quotes_routes, security_routes};

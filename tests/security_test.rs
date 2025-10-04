@@ -1,5 +1,6 @@
 use bridge_router::{
-    db::{SecurityRepository, pool::init_pg_pool},
+    config::Settings,
+    db::{SecurityRepository, pool::init_pg_pool_with_config},
     models::security::*,
 };
 use chrono::NaiveDate;
@@ -18,7 +19,8 @@ mod security_repository_tests {
     #[ignore] // Ignored by default since it requires a real database
     async fn test_audit_reports_repository() {
         // Initialize database connection
-        let pool = init_pg_pool()
+        let settings = Settings::new().expect("Failed to load settings");
+        let pool = init_pg_pool_with_config(&settings)
             .await
             .expect("Failed to create database connection pool");
 
@@ -77,7 +79,8 @@ mod security_repository_tests {
     #[ignore] // Ignored by default since it requires a real database
     async fn test_exploit_history_repository() {
         // Initialize database connection
-        let pool = init_pg_pool()
+        let settings = Settings::new().expect("Failed to load settings");
+        let pool = init_pg_pool_with_config(&settings)
             .await
             .expect("Failed to create database connection pool");
 

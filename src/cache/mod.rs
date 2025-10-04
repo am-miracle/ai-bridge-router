@@ -2,7 +2,7 @@ use crate::utils::errors::{AppError, AppResult};
 use deadpool_redis::redis::cmd;
 use deadpool_redis::{Config, Pool, PoolError, Runtime};
 use serde::{Deserialize, Serialize};
-use std::{env, time::Duration};
+use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{error, info, warn};
 
@@ -18,40 +18,11 @@ pub struct RedisConfig {
 impl Default for RedisConfig {
     fn default() -> Self {
         Self {
-            url: "redis://localhost:6379".to_string(),
+            url: "rediss://localhost:6379".to_string(),
             pool_size: 10,
             connection_timeout: Duration::from_secs(5),
             command_timeout: Duration::from_secs(3),
         }
-    }
-}
-
-impl RedisConfig {
-    /// Load Redis configuration from environment variables
-    pub fn from_env() -> AppResult<Self> {
-        let url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
-
-        let pool_size = env::var("REDIS_POOL_SIZE")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u32>()
-            .map_err(|_| AppError::config("Invalid REDIS_POOL_SIZE"))?;
-
-        let connection_timeout_secs = env::var("REDIS_CONNECTION_TIMEOUT")
-            .unwrap_or_else(|_| "5".to_string())
-            .parse::<u64>()
-            .map_err(|_| AppError::config("Invalid REDIS_CONNECTION_TIMEOUT"))?;
-
-        let command_timeout_secs = env::var("REDIS_COMMAND_TIMEOUT")
-            .unwrap_or_else(|_| "3".to_string())
-            .parse::<u64>()
-            .map_err(|_| AppError::config("Invalid REDIS_COMMAND_TIMEOUT"))?;
-
-        Ok(Self {
-            url,
-            pool_size,
-            connection_timeout: Duration::from_secs(connection_timeout_secs),
-            command_timeout: Duration::from_secs(command_timeout_secs),
-        })
     }
 }
 
@@ -63,10 +34,17 @@ pub struct CacheClient {
 }
 
 impl CacheClient {
-    /// Create a new cache client
-    pub async fn new() -> AppResult<Self> {
-        let config = RedisConfig::from_env()?;
-        Self::with_config(config).await
+    /// Create a new cache client with Settings configuration
+    pub async fn with_settings(settings: &crate::config::Settings) -> AppResult<Self> {
+        let redis_config = RedisConfig {
+            url: settings.redis.url.clone(),
+            pool_size: settings.redis.pool_size,
+            connection_timeout: std::time::Duration::from_secs(
+                settings.redis.connection_timeout_seconds,
+            ),
+            command_timeout: std::time::Duration::from_secs(settings.redis.command_timeout_seconds),
+        };
+        Self::with_config(redis_config).await
     }
 
     /// Create a new cache client with custom configuration
@@ -75,6 +53,15 @@ impl CacheClient {
             "Creating Redis connection pool with {} connections",
             config.pool_size
         );
+
+        // Initialize rustls crypto provider for TLS support
+        if config.url.starts_with("rediss://") {
+            rustls::crypto::ring::default_provider()
+                .install_default()
+                .map_err(|e| {
+                    AppError::config(format!("Failed to install rustls crypto provider: {:?}", e))
+                })?;
+        }
 
         // Create deadpool configuration
         let pool_config = Config::from_url(&config.url);
@@ -376,7 +363,6 @@ impl CacheClient {
     pub async fn get_stats(&self) -> AppResult<CacheStats> {
         let mut conn = self.get_connection().await?;
 
-        // Get Redis statistics
         let info_result = timeout(
             self.config.command_timeout,
             cmd("INFO").arg("all").query_async::<String>(&mut conn),
@@ -395,7 +381,6 @@ impl CacheClient {
             hits: 0,
             misses: 0,
             evicted_keys: 0,
-            config: self.config.clone(),
         };
 
         // Parse Redis INFO output
@@ -561,8 +546,6 @@ pub struct CacheStats {
     pub hits: u64,
     pub misses: u64,
     pub evicted_keys: u64,
-    #[allow(dead_code)]
-    pub config: RedisConfig,
 }
 
 /// Redis monitoring information

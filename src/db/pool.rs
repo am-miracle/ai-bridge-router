@@ -1,67 +1,21 @@
-use crate::utils::errors::{AppError, AppResult};
+use crate::config::Settings;
+use crate::utils::errors::AppResult;
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::{env, time::Duration};
+use std::time::Duration;
 use tracing::{error, info};
 
-#[derive(Debug, Clone)]
-pub struct DatabaseConfig {
-    pub url: String,
-    pub max_connections: u32,
-    pub min_connections: u32,
-    pub acquire_timeout: Duration,
-    pub idle_timeout: Duration,
-}
-
-impl Default for DatabaseConfig {
-    fn default() -> Self {
-        Self {
-            url: "postgres://localhost/bridge_router".to_string(),
-            max_connections: 10,
-            min_connections: 1,
-            acquire_timeout: Duration::from_secs(30),
-            idle_timeout: Duration::from_secs(600),
-        }
-    }
-}
-
-impl DatabaseConfig {
-    /// Load database configuration from environment variables
-    pub fn from_env() -> AppResult<Self> {
-        let url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://localhost/bridge_router".to_string());
-
-        let max_connections = env::var("DATABASE_MAX_CONNECTIONS")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u32>()
-            .map_err(|_| AppError::config("Invalid DATABASE_MAX_CONNECTIONS"))?;
-
-        let min_connections = env::var("DATABASE_MIN_CONNECTIONS")
-            .unwrap_or_else(|_| "1".to_string())
-            .parse::<u32>()
-            .map_err(|_| AppError::config("Invalid DATABASE_MIN_CONNECTIONS"))?;
-
-        Ok(Self {
-            url,
-            max_connections,
-            min_connections,
-            acquire_timeout: Duration::from_secs(30),
-            idle_timeout: Duration::from_secs(600),
-        })
-    }
-}
-
-/// Initialize PostgreSQL connection pool with migrations
-pub async fn init_pg_pool() -> AppResult<PgPool> {
-    let config = DatabaseConfig::from_env()?;
-
-    info!("Connecting to database");
+/// Initialize PostgreSQL connection pool with Settings configuration
+pub async fn init_pg_pool_with_config(settings: &Settings) -> AppResult<PgPool> {
+    info!("Connecting to database with configuration");
 
     let pool = PgPoolOptions::new()
-        .max_connections(config.max_connections)
-        .min_connections(config.min_connections)
-        .acquire_timeout(config.acquire_timeout)
-        .idle_timeout(config.idle_timeout)
-        .connect(&config.url)
+        .max_connections(settings.database.max_connections)
+        .min_connections(settings.database.min_connections)
+        .acquire_timeout(Duration::from_secs(
+            settings.database.connect_timeout_seconds,
+        ))
+        .idle_timeout(Duration::from_secs(settings.database.idle_timeout_seconds))
+        .connect(&settings.database.url)
         .await?;
 
     // Test the connection
@@ -70,7 +24,10 @@ pub async fn init_pg_pool() -> AppResult<PgPool> {
     // Run migrations if needed
     run_migrations(&pool).await?;
 
-    info!("Database connection established successfully");
+    info!(
+        "Database connection established successfully (max_conn={}, min_conn={})",
+        settings.database.max_connections, settings.database.min_connections
+    );
     Ok(pool)
 }
 

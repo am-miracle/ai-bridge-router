@@ -6,8 +6,8 @@ use tracing::{debug, error, info, warn};
 use super::{format_liquidity, get_cached_quote, retry_request};
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
 
-/// Hop API endpoint - using v2 API for better reliability
-/// Documentation: https://docs.hop.exchange/v2
+/// Hop API endpoint - using v1 API
+/// Documentation: https://docs.hop.exchange/v1
 const HOP_API_BASE: &str = "https://api.hop.exchange";
 
 /// Network configuration for Hop
@@ -21,11 +21,11 @@ pub struct HopNetwork {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HopRoute {
     pub token: String,
-    #[serde(rename = "sourceChain")]
+    #[serde(rename = "sourceChainSlug")]
     pub source_chain: String,
     #[serde(rename = "sourceChainId")]
     pub source_chain_id: u64,
-    #[serde(rename = "destinationChain")]
+    #[serde(rename = "destinationChainSlug")]
     pub destination_chain: String,
     #[serde(rename = "destinationChainId")]
     pub destination_chain_id: u64,
@@ -56,7 +56,7 @@ struct HopQuoteRequest {
 }
 
 /// Hop API quote response structure
-/// Based on Hop v2 API documentation: https://docs.hop.exchange/v2
+/// Based on Hop v1 API documentation: https://docs.hop.exchange/v1
 ///
 /// Example response:
 /// ```json
@@ -66,7 +66,7 @@ struct HopQuoteRequest {
 ///   "amountOutMin": "743633",
 ///   "destinationAmountOutMin": "742915",
 ///   "bonderFee": "250515",
-///   "estimatedReceived": "747908",
+///   "estimatedRecieved": "747908",
 ///   "deadline": 1679862208,
 ///   "destinationDeadline": 1679862208
 /// }
@@ -79,14 +79,14 @@ struct HopQuoteResponse {
     #[serde(rename = "amountOutMin")]
     amount_out_min: String,
     #[serde(rename = "destinationAmountOutMin")]
-    destination_amount_out_min: String,
+    destination_amount_out_min: Option<String>,
     #[serde(rename = "bonderFee")]
     bonder_fee: String,
-    #[serde(rename = "estimatedReceived")]
+    #[serde(rename = "estimatedRecieved")]
     estimated_received: String,
     deadline: u64,
     #[serde(rename = "destinationDeadline")]
-    destination_deadline: u64,
+    destination_deadline: Option<u64>,
 }
 
 impl HopConfig {
@@ -319,17 +319,21 @@ fn parse_amount_to_float(amount_str: &str, decimals: u8) -> Result<f64, BridgeEr
 ///
 /// # Example
 /// ```rust
+/// use bridge_router::models::bridge::{BridgeQuoteRequest, BridgeClientConfig};
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let request = BridgeQuoteRequest {
 ///     asset: "USDC".to_string(),
 ///     from_chain: "ethereum".to_string(),
 ///     to_chain: "polygon".to_string(),
 ///     amount: Some("1000000".to_string()), // 1 USDC
-///     recipient: None,
 /// };
 ///
 /// let config = BridgeClientConfig::new();
-/// let quote = get_quote(&request, &config).await?;
+/// let quote = bridge_router::services::bridge_client::hop::get_quote(&request, &config).await?;
 /// // Returns: BridgeQuote { bridge: "Hop", fee: 0.002, est_time: 300, ... }
+/// # Ok(())
+/// # }
 /// ```
 pub async fn get_quote(
     request: &BridgeQuoteRequest,
@@ -524,16 +528,16 @@ async fn fetch_hop_quote_once(
     let metadata = serde_json::json!({
         "amount_in": hop_response.amount_in,
         "amount_out_min": hop_response.amount_out_min,
-        "destination_amount_out_min": hop_response.destination_amount_out_min,
+        "destination_amount_out_min": hop_response.destination_amount_out_min.unwrap_or_else(|| "null".to_string()),
         "estimated_received": hop_response.estimated_received,
         "slippage": hop_response.slippage,
         "deadline": hop_response.deadline,
-        "destination_deadline": hop_response.destination_deadline,
+        "destination_deadline": hop_response.destination_deadline.unwrap_or(0),
         "route": format!("{} -> {}", from_chain, to_chain),
         "network": hop_request.network.unwrap_or_else(|| "mainnet".to_string()),
         "token_decimals": decimals,
-        "liquidity_multiplier": liquidity_multiplier,
-        "api_version": "v1"
+        "from_chain": from_chain,
+        "to_chain": to_chain
     });
 
     let quote = BridgeQuote {
@@ -698,7 +702,7 @@ mod tests {
             "amountOutMin": "743633",
             "destinationAmountOutMin": "742915",
             "bonderFee": "250515",
-            "estimatedReceived": "747908",
+            "estimatedRecieved": "747908",
             "deadline": 1679862208,
             "destinationDeadline": 1679862208
         }"#;
@@ -709,11 +713,14 @@ mod tests {
         assert_eq!(response.amount_in, "1000000");
         assert_eq!(response.slippage, 0.5);
         assert_eq!(response.amount_out_min, "743633");
-        assert_eq!(response.destination_amount_out_min, "742915");
+        assert_eq!(
+            response.destination_amount_out_min,
+            Some("742915".to_string())
+        );
         assert_eq!(response.bonder_fee, "250515");
         assert_eq!(response.estimated_received, "747908");
         assert_eq!(response.deadline, 1679862208);
-        assert_eq!(response.destination_deadline, 1679862208);
+        assert_eq!(response.destination_deadline, Some(1679862208));
 
         // Test fee calculation (250515 / 10^6 = 0.250515 USDC)
         let fee = parse_amount_to_float(&response.bonder_fee, 6).unwrap();
@@ -722,6 +729,41 @@ mod tests {
         // Test estimated received calculation (747908 / 10^6 = 0.747908 USDC)
         let received = parse_amount_to_float(&response.estimated_received, 6).unwrap();
         assert_eq!(received, 0.747908);
+    }
+
+    #[tokio::test]
+    async fn test_hop_quote_response_parsing_with_nulls() {
+        // Test parsing response with null values (real API scenario)
+        let response_json = r#"{
+            "amountIn": "100000000",
+            "slippage": 0.5,
+            "amountOutMin": "99490050",
+            "destinationAmountOutMin": null,
+            "bonderFee": "10000",
+            "estimatedRecieved": "99990000",
+            "deadline": 1760176068,
+            "destinationDeadline": null
+        }"#;
+
+        let response: HopQuoteResponse = serde_json::from_str(response_json).unwrap();
+
+        // Test all fields are parsed correctly
+        assert_eq!(response.amount_in, "100000000");
+        assert_eq!(response.slippage, 0.5);
+        assert_eq!(response.amount_out_min, "99490050");
+        assert_eq!(response.destination_amount_out_min, None);
+        assert_eq!(response.bonder_fee, "10000");
+        assert_eq!(response.estimated_received, "99990000");
+        assert_eq!(response.deadline, 1760176068);
+        assert_eq!(response.destination_deadline, None);
+
+        // Test fee calculation (10000 / 10^8 = 0.0001 for 8 decimal token)
+        let fee = parse_amount_to_float(&response.bonder_fee, 8).unwrap();
+        assert_eq!(fee, 0.0001);
+
+        // Test estimated received calculation
+        let received = parse_amount_to_float(&response.estimated_received, 8).unwrap();
+        assert_eq!(received, 0.9999);
     }
 
     #[test]

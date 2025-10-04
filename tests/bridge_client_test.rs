@@ -79,8 +79,24 @@ async fn test_get_all_bridge_quotes_empty_response() {
 
     let quotes = get_all_bridge_quotes(&request, &config).await;
 
-    // Should return empty vector when all bridges fail
-    assert_eq!(quotes.len(), 0);
+    // When all bridges fail, we should get error results for each bridge
+    assert_eq!(quotes.len(), 3); // One result for each bridge
+
+    // Verify each result has an error and no quote
+    for quote in quotes {
+        assert!(quote.quote.is_none(), "Expected no successful quotes");
+        assert!(quote.error.is_some(), "Expected error message");
+        let error_msg = quote.error.as_ref().unwrap();
+        println!("Bridge {} error: {}", quote.bridge, error_msg);
+        assert!(
+            error_msg.contains("INVALID_ASSET")
+                || error_msg.contains("invalid_chain")
+                || error_msg.contains("Timeout")
+                || error_msg.contains("timeout"),
+            "Error should mention invalid asset/chain or timeout, got: {}",
+            error_msg
+        );
+    }
 }
 
 #[tokio::test]

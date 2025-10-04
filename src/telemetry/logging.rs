@@ -8,11 +8,12 @@ use tracing_subscriber::{
 };
 // OpenTelemetry integration can be added later if needed
 
-/// Initialize structured logging with JSON output format
-pub fn init_logging() -> anyhow::Result<()> {
-    // Set up environment filter
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("bridge_router=info,tower_http=debug"));
+/// Initialize structured logging with configuration from Settings
+pub fn init_logging(settings: &crate::config::Settings) -> anyhow::Result<()> {
+    // Set up environment filter based on settings level
+    let filter_directive = format!("bridge_router={},tower_http=debug", settings.logging.level);
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&filter_directive));
 
     // Set up JSON formatter for production
     let json_layer = fmt::layer()
@@ -36,13 +37,10 @@ pub fn init_logging() -> anyhow::Result<()> {
         .with_line_number(true)
         .with_span_events(FmtSpan::CLOSE);
 
-    // Choose formatter based on environment
-    let is_production = std::env::var("RUST_LOG_FORMAT")
-        .unwrap_or_else(|_| "pretty".to_string())
-        .to_lowercase()
-        == "json";
+    // Choose formatter based on settings
+    let is_json_format = settings.logging.format == "json";
 
-    let fmt_layer = if is_production {
+    let fmt_layer = if is_json_format {
         json_layer.boxed()
     } else {
         pretty_layer.boxed()
@@ -52,8 +50,8 @@ pub fn init_logging() -> anyhow::Result<()> {
     Registry::default().with(env_filter).with(fmt_layer).init();
 
     info!(
-        "Structured logging initialized with {} format",
-        if is_production { "JSON" } else { "pretty" }
+        "Structured logging initialized with {} format, level: {}",
+        settings.logging.format, settings.logging.level
     );
 
     Ok(())

@@ -1,10 +1,6 @@
 use bridge_router::cache::{CacheClient, RedisConfig};
 use bridge_router::utils::errors::AppResult;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-
-// Global mutex to prevent test interference
-static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct TestData {
@@ -13,11 +9,22 @@ struct TestData {
     active: bool,
 }
 
+/// Create a minimal Redis configuration for testing
+fn create_test_redis_config() -> RedisConfig {
+    RedisConfig {
+        url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+        pool_size: 5,
+        connection_timeout: std::time::Duration::from_secs(5),
+        command_timeout: std::time::Duration::from_secs(3),
+    }
+}
+
 /// Test Redis utility functions that were recently implemented
 #[tokio::test]
 async fn test_redis_utility_functions() -> AppResult<()> {
     // Skip if Redis is not available
-    let client = match CacheClient::new().await {
+    let config = create_test_redis_config();
+    let client = match CacheClient::with_config(config).await {
         Ok(client) => client,
         Err(_) => {
             println!("Skipping Redis utility functions test - Redis not available");
@@ -86,10 +93,9 @@ async fn test_redis_utility_functions() -> AppResult<()> {
 
     // Test 9: GET_STATS operation
     let stats = client.get_stats().await?;
-    assert!(stats.config.pool_size > 0);
     println!(
-        "✓ GET_STATS operation: {} bytes used, pool size {}",
-        stats.used_memory_bytes, stats.config.pool_size
+        "✓ GET_STATS operation: {} bytes used",
+        stats.used_memory_bytes
     );
 
     // Test 10: HEALTH_CHECK operation
@@ -101,81 +107,4 @@ async fn test_redis_utility_functions() -> AppResult<()> {
 
     println!("All Redis utility functions test passed! 🎉");
     Ok(())
-}
-
-/// Test Redis configuration validation
-#[test]
-fn test_redis_config_validation() {
-    let _guard = TEST_MUTEX.lock().unwrap();
-    // Test default configuration
-    let default_config = RedisConfig::default();
-    assert_eq!(default_config.pool_size, 10);
-    assert_eq!(default_config.connection_timeout.as_secs(), 5);
-    assert_eq!(default_config.command_timeout.as_secs(), 3);
-    assert_eq!(default_config.url, "redis://localhost:6379");
-
-    // Clean environment first
-    unsafe {
-        std::env::remove_var("REDIS_POOL_SIZE");
-        std::env::remove_var("REDIS_CONNECTION_TIMEOUT");
-        std::env::remove_var("REDIS_COMMAND_TIMEOUT");
-    }
-
-    // Test configuration loading from environment
-    unsafe {
-        std::env::set_var("REDIS_POOL_SIZE", "20");
-        std::env::set_var("REDIS_CONNECTION_TIMEOUT", "10");
-        std::env::set_var("REDIS_COMMAND_TIMEOUT", "5");
-    }
-
-    let config = RedisConfig::from_env().unwrap();
-    assert_eq!(config.pool_size, 20);
-    assert_eq!(config.connection_timeout.as_secs(), 10);
-    assert_eq!(config.command_timeout.as_secs(), 5);
-
-    // Clean up
-    unsafe {
-        std::env::remove_var("REDIS_POOL_SIZE");
-        std::env::remove_var("REDIS_CONNECTION_TIMEOUT");
-        std::env::remove_var("REDIS_COMMAND_TIMEOUT");
-    }
-}
-
-/// Test invalid Redis configuration
-#[test]
-fn test_invalid_redis_config() {
-    // Ensure clean environment first
-    unsafe {
-        std::env::remove_var("REDIS_POOL_SIZE");
-        std::env::remove_var("REDIS_CONNECTION_TIMEOUT");
-        std::env::remove_var("REDIS_COMMAND_TIMEOUT");
-    }
-
-    // Test invalid pool size
-    unsafe {
-        std::env::set_var("REDIS_POOL_SIZE", "invalid");
-    }
-    let result = RedisConfig::from_env();
-    assert!(result.is_err());
-
-    // Test invalid connection timeout
-    unsafe {
-        std::env::remove_var("REDIS_POOL_SIZE");
-        std::env::set_var("REDIS_CONNECTION_TIMEOUT", "invalid");
-    }
-    let result = RedisConfig::from_env();
-    assert!(result.is_err());
-
-    // Test invalid command timeout
-    unsafe {
-        std::env::remove_var("REDIS_CONNECTION_TIMEOUT");
-        std::env::set_var("REDIS_COMMAND_TIMEOUT", "invalid");
-    }
-    let result = RedisConfig::from_env();
-    assert!(result.is_err());
-
-    // Clean up
-    unsafe {
-        std::env::remove_var("REDIS_COMMAND_TIMEOUT");
-    }
 }

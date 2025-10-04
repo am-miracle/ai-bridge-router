@@ -109,7 +109,6 @@ We welcome contributions! To keep the project organized, please follow these ste
 ### Branching Model
 
 * `master`: Stable branch.
-* `dev`: Active development branch.
 * Feature branches: `feature/<name>` (e.g., `feature/bridge-aggregator`).
 * Bugfix branches: `fix/<name>`.
 
@@ -131,7 +130,7 @@ feat(bridge-client): add Connext API integration
 
 ### Code Review
 
-* Open a PR against `dev`.
+* Open a PR against `master`.
 * Ensure CI passes (tests + lint).
 * Request at least one reviewer.
 

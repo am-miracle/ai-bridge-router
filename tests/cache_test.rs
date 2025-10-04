@@ -1,5 +1,5 @@
 use bridge_router::cache::{CacheClient, RedisConfig};
-use bridge_router::utils::errors::{AppError, AppResult};
+use bridge_router::utils::errors::AppResult;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -9,6 +9,16 @@ struct TestData {
     active: bool,
 }
 
+/// Create a minimal Redis configuration for testing
+fn create_test_redis_config() -> RedisConfig {
+    RedisConfig {
+        url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string()),
+        pool_size: 5,
+        connection_timeout: std::time::Duration::from_secs(5),
+        command_timeout: std::time::Duration::from_secs(3),
+    }
+}
+
 /// Test Redis connectivity and basic operations
 #[tokio::test]
 async fn test_redis_connectivity() -> AppResult<()> {
@@ -16,7 +26,8 @@ async fn test_redis_connectivity() -> AppResult<()> {
     // Skip if REDIS_URL is not properly configured
     match std::env::var("REDIS_URL") {
         Ok(url) if !url.is_empty() && url != "redis://localhost:6379" => {
-            let client = CacheClient::new().await?;
+            let config = create_test_redis_config();
+            let client = CacheClient::with_config(config).await?;
 
             // Test health check
             assert!(client.health_check().await);
@@ -35,7 +46,8 @@ async fn test_redis_connectivity() -> AppResult<()> {
 #[tokio::test]
 async fn test_redis_cache_operations() -> AppResult<()> {
     // Skip if Redis is not available
-    let client = match CacheClient::new().await {
+    let config = create_test_redis_config();
+    let client = match CacheClient::with_config(config).await {
         Ok(client) => client,
         Err(_) => {
             println!("Skipping cache operations test - Redis not available");
@@ -83,7 +95,8 @@ async fn test_redis_cache_operations() -> AppResult<()> {
 /// Test Redis cache with TTL expiration
 #[tokio::test]
 async fn test_redis_ttl_expiration() -> AppResult<()> {
-    let client = match CacheClient::new().await {
+    let config = create_test_redis_config();
+    let client = match CacheClient::with_config(config).await {
         Ok(client) => client,
         Err(_) => {
             println!("Skipping TTL expiration test - Redis not available");
@@ -116,7 +129,8 @@ async fn test_redis_ttl_expiration() -> AppResult<()> {
 /// Test Redis multiple operations
 #[tokio::test]
 async fn test_redis_multiple_operations() -> AppResult<()> {
-    let client = match CacheClient::new().await {
+    let config = create_test_redis_config();
+    let client = match CacheClient::with_config(config).await {
         Ok(client) => client,
         Err(_) => {
             println!("Skipping multiple operations test - Redis not available");
@@ -156,7 +170,8 @@ async fn test_redis_multiple_operations() -> AppResult<()> {
 /// Test Redis increment operation
 #[tokio::test]
 async fn test_redis_increment() -> AppResult<()> {
-    let client = match CacheClient::new().await {
+    let config = create_test_redis_config();
+    let client = match CacheClient::with_config(config).await {
         Ok(client) => client,
         Err(_) => {
             println!("Skipping increment test - Redis not available");
@@ -186,56 +201,4 @@ async fn test_redis_increment() -> AppResult<()> {
 
     println!("Redis increment test passed");
     Ok(())
-}
-
-/// Test Redis configuration validation
-#[test]
-fn test_redis_config_validation() {
-    // Ensure clean environment
-    unsafe {
-        std::env::remove_var("REDIS_POOL_SIZE");
-    }
-
-    // Test default configuration
-    let default_config = RedisConfig::default();
-    assert_eq!(default_config.url, "redis://localhost:6379");
-    assert_eq!(default_config.pool_size, 10);
-
-    // Test configuration loading from environment
-    unsafe {
-        std::env::set_var("REDIS_POOL_SIZE", "20");
-    }
-
-    let config = RedisConfig::from_env().unwrap();
-    assert_eq!(config.pool_size, 20);
-
-    // Clean up
-    unsafe {
-        std::env::remove_var("REDIS_POOL_SIZE");
-    }
-}
-
-/// Test invalid Redis configuration
-#[test]
-fn test_invalid_redis_config() {
-    // Test invalid pool size by creating a custom config
-    let result = std::panic::catch_unwind(|| {
-        // This should fail because we're testing the parsing logic
-        "invalid"
-            .parse::<u32>()
-            .map_err(|_| AppError::config("Invalid REDIS_POOL_SIZE"))
-    });
-
-    // The parsing should fail
-    assert!(result.is_ok());
-    let parse_result = result.unwrap();
-    assert!(parse_result.is_err());
-
-    // Test that the error message is correct
-    match parse_result {
-        Err(AppError::Config(msg)) => {
-            assert!(msg.contains("Invalid REDIS_POOL_SIZE"));
-        }
-        _ => panic!("Expected Config error"),
-    }
 }

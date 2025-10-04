@@ -1,4 +1,5 @@
 use crate::cache::CacheClient;
+use crate::config::Settings;
 use crate::utils::errors::AppResult;
 use sqlx::PgPool;
 use std::time::Instant;
@@ -16,11 +17,16 @@ impl AppState {
     pub async fn new() -> AppResult<Self> {
         let start_time = Instant::now();
 
-        // Initialize database pool
-        let pg_pool = crate::db::pool::init_pg_pool().await?;
+        // Load configuration
+        let settings = Settings::new().map_err(|e| {
+            crate::utils::errors::AppError::config(format!("Failed to load settings: {}", e))
+        })?;
 
-        // Initialize Redis client
-        let redis_client = CacheClient::new().await?;
+        // Initialize database pool with settings
+        let pg_pool = crate::db::pool::init_pg_pool_with_config(&settings).await?;
+
+        // Initialize Redis client with settings
+        let redis_client = CacheClient::with_settings(&settings).await?;
 
         Ok(Self {
             start_time,

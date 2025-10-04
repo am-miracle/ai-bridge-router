@@ -14,7 +14,7 @@ pub struct QuoteParams {
 }
 
 /// Individual quote response format as specified
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuoteResponse {
     /// Bridge name (e.g., "Connext", "Hop", "Axelar")
     pub bridge: String,
@@ -28,11 +28,22 @@ pub struct QuoteResponse {
     pub score: f64,
 }
 
-/// Aggregated response containing all bridge quotes
-#[derive(Debug, Serialize, Deserialize)]
+/// Aggregated response containing all bridge quotes and errors
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AggregatedQuotesResponse {
     /// List of normalized routes from all bridges
     pub routes: Vec<QuoteResponse>,
+    /// List of errors for bridges that failed or timed out
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
+    pub errors: Vec<BridgeQuoteError>,
+}
+
+/// Error information for a single bridge quote
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeQuoteError {
+    pub bridge: String,
+    pub error: String,
 }
 
 /// Error response for when no quotes are available
