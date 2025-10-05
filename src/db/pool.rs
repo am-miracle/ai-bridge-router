@@ -52,7 +52,7 @@ async fn run_migrations(pool: &PgPool) -> AppResult<()> {
     .await?;
 
     // For now, we'll just log that migrations are ready
-    // In a real application, you would use sqlx::migrate!() here
+    // sqlx::migrate!() here
     info!("Database migrations completed successfully");
     Ok(())
 }

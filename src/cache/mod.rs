@@ -1,3 +1,4 @@
+use crate::config::Settings;
 use crate::utils::errors::{AppError, AppResult};
 use deadpool_redis::redis::cmd;
 use deadpool_redis::{Config, Pool, PoolError, Runtime};
@@ -35,25 +36,18 @@ pub struct CacheClient {
 
 impl CacheClient {
     /// Create a new cache client with Settings configuration
-    pub async fn with_settings(settings: &crate::config::Settings) -> AppResult<Self> {
+    pub async fn with_settings(settings: &Settings) -> AppResult<Self> {
         let redis_config = RedisConfig {
             url: settings.redis.url.clone(),
             pool_size: settings.redis.pool_size,
-            connection_timeout: std::time::Duration::from_secs(
-                settings.redis.connection_timeout_seconds,
-            ),
-            command_timeout: std::time::Duration::from_secs(settings.redis.command_timeout_seconds),
+            connection_timeout: Duration::from_secs(settings.redis.connection_timeout_seconds),
+            command_timeout: Duration::from_secs(settings.redis.command_timeout_seconds),
         };
         Self::with_config(redis_config).await
     }
 
     /// Create a new cache client with custom configuration
     pub async fn with_config(config: RedisConfig) -> AppResult<Self> {
-        info!(
-            "Creating Redis connection pool with {} connections",
-            config.pool_size
-        );
-
         // Initialize rustls crypto provider for TLS support
         if config.url.starts_with("rediss://") {
             rustls::crypto::ring::default_provider()

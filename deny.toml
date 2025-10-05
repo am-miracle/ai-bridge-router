@@ -12,6 +12,7 @@ allow = [
     "Unicode-3.0",
     "0BSD",
     "CDLA-Permissive-2.0",
+    "OpenSSL",
 ]
 
 [advisories]
