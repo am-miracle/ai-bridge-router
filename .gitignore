@@ -4,6 +4,9 @@ Cargo.lock
 
 node_modules
 
+# Husky
+.husky/_
+
 # Environment variables
 .env
 .env.local

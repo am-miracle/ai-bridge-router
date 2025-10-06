@@ -31,7 +31,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --include=optional
 
       - name: Check formatting
         run: npm run format:check
@@ -58,7 +58,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --include=optional
 
       - name: Run type check
         run: npm run type-check
@@ -83,7 +83,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --include=optional
 
       - name: Build project
         run: npm run build
