@@ -21,7 +21,7 @@
     "lint:backend": "cargo clippy --all-targets --all-features -- -D warnings",
     "type-check": "npm --prefix frontend run type-check",
     "test:backend": "cargo test --verbose",
-    "prepare": "husky"
+    "prepare": "node -e \"if (process.env.CI !== 'true' && process.env.VERCEL !== '1') { try { require('child_process').execSync('husky', {stdio: 'inherit'}) } catch (e) { console.log('Skipping husky installation') } }\""
   },
   "devDependencies": {
     "husky": "^9.0.0",
