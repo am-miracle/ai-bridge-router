@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [master, dev]
   pull_request:
-    branches: [ master, dev ]
+    branches: [master, dev]
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,93 +29,93 @@ jobs:
           - 6379:6379
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-    - name: Install SQLx CLI
-      run: cargo install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
 
-    - name: Setup test database
-      run: |
-        if [ -n "$DATABASE_URL" ]; then
-          sqlx database create
-          sqlx migrate run
-        else
-          echo "No DATABASE_URL provided, skipping database setup"
-        fi
-      env:
-        DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      - name: Setup test database
+        run: |
+          if [ -n "$DATABASE_URL" ]; then
+            sqlx database create
+            sqlx migrate run
+          else
+            echo "No DATABASE_URL provided, skipping database setup"
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
 
-    - name: Check formatting
-      run: cargo fmt --all -- --check
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-    - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
-      env:
-        SQLX_OFFLINE: true
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        env:
+          SQLX_OFFLINE: true
 
-    - name: Run tests
-      run: |
-        if [ -n "$DATABASE_URL" ]; then
-          cargo test --all-features
-        else
-          echo "No DATABASE_URL provided, running tests without database"
-          cargo test --lib --bins
-        fi
-      env:
-        DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-        REDIS_URL: ${{ secrets.TEST_REDIS_URL || 'redis://localhost:6379' }}
-        RUST_LOG: debug
+      - name: Run tests
+        run: |
+          if [ -n "$DATABASE_URL" ]; then
+            cargo test --all-features
+          else
+            echo "No DATABASE_URL provided, running tests without database"
+            cargo test --lib --bins
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.TEST_REDIS_URL || 'redis://localhost:6379' }}
+          RUST_LOG: debug
 
-    - name: Build
-      run: cargo build --all-features --release
-      env:
-        SQLX_OFFLINE: true
+      - name: Build
+        run: cargo build --all-features --release
+        env:
+          SQLX_OFFLINE: true
 
-    - name: Upload coverage reports
-      if: success()
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./target/coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+      - name: Upload coverage reports
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./target/coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
 
   # Security audit job
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
 
-    - name: Run security audit
-      run: cargo audit --ignore RUSTSEC-2024-0388 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2023-0071
+      - name: Run security audit
+        run: cargo audit --ignore RUSTSEC-2024-0388 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2023-0071
 
-    - name: Check for known vulnerabilities
-      run: cargo audit --deny warnings --ignore RUSTSEC-2024-0388 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2023-0071
+      - name: Check for known vulnerabilities
+        run: cargo audit --deny warnings --ignore RUSTSEC-2024-0388 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2023-0071
 
   # Build for multiple targets
   build-matrix:
@@ -125,108 +125,102 @@ jobs:
       matrix:
         target:
           - x86_64-unknown-linux-gnu
-          # Note: musl target removed due to missing cross-compiler
-          # - x86_64-unknown-linux-musl  # Requires musl-gcc cross-compiler
-          # Note: macOS and Windows cross-compilation removed due to native dependency issues
-          # - x86_64-apple-darwin  # Fails with blst crate compilation
-          # - x86_64-pc-windows-msvc  # May have similar issues
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        target: ${{ matrix.target }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-${{ matrix.target }}-
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
 
-    - name: Build
-      run: cargo build --release --target ${{ matrix.target }}
-      env:
-        SQLX_OFFLINE: true
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          SQLX_OFFLINE: true
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: bridge-router-${{ matrix.target }}
-        path: target/${{ matrix.target }}/release/bridge-router*
-        retention-days: 7
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-router-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/bridge-router*
+          retention-days: 7
 
   # Build for macOS using native runner
   build-macos:
     name: Build macOS
     runs-on: macos-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          macos-cargo-
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            macos-cargo-
 
-    - name: Build
-      run: cargo build --release
-      env:
-        SQLX_OFFLINE: true
+      - name: Build
+        run: cargo build --release
+        env:
+          SQLX_OFFLINE: true
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: bridge-router-macos
-        path: target/release/bridge-router*
-        retention-days: 7
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-router-macos
+          path: target/release/bridge-router*
+          retention-days: 7
 
   # Build for Windows using native runner
   build-windows:
     name: Build Windows
     runs-on: windows-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          windows-cargo-
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            windows-cargo-
 
-    - name: Build
-      run: cargo build --release
-      env:
-        SQLX_OFFLINE: true
+      - name: Build
+        run: cargo build --release
+        env:
+          SQLX_OFFLINE: true
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: bridge-router-windows
-        path: target/release/bridge-router*.exe
-        retention-days: 7
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-router-windows
+          path: target/release/bridge-router*.exe
+          retention-days: 7

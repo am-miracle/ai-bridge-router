@@ -1,0 +1,81 @@
+---
+export const prerender = true;
+
+import MainLayout from "../layouts/main.astro";
+import { AnimatedSupportHero } from "@/components/support/AnimatedSupportHero";
+import { FAQItemComponent } from "@/components/FAQItem";
+import { AnimatedContactCard } from "@/components/support/AnimatedContactCard";
+import { faqs, contactInfo } from "@/config/support";
+
+const content = {
+  title: "Support - Bridge Router",
+};
+---
+
+<MainLayout content={content}>
+  <div class="max-w-5xl mx-auto space-y-16">
+    {/* Hero Section */}
+    <AnimatedSupportHero client:load />
+
+    <!-- <section class="space-y-6">
+            <h2 class="text-2xl font-bold">Browse by Category</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                {
+                    supportCategories.map((category) => (
+                        <SupportCategoryCard category={category} client:load />
+                    ))
+                }
+            </div>
+        </section> -->
+
+    <section class="space-y-6">
+      <!-- <div class="text-center space-y-2">
+                <h2 class="text-2xl font-bold">Frequently Asked Questions</h2>
+                <p class="text-muted-foreground">
+                    Quick answers to questions you may have
+                </p>
+            </div> -->
+      <div class="space-y-3">
+        {faqs.map((faq, index) => <FAQItemComponent faq={faq} index={index} client:load />)}
+      </div>
+    </section>
+
+    {/* Contact Section */}
+    <section class="space-y-6">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl font-bold">Still need help?</h2>
+        <p class="text-muted-foreground">Our team is here to assist you</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <AnimatedContactCard type="email" email={contactInfo.email} index={0} client:load />
+        <AnimatedContactCard
+          type="community"
+          discord={contactInfo.discord}
+          twitter={contactInfo.twitter}
+          index={1}
+          client:load
+        />
+      </div>
+    </section>
+
+    <!-- <section
+            class="p-8 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20"
+        >
+            <div class="text-center space-y-4">
+                <h3 class="text-xl font-bold">Looking for developer docs?</h3>
+                <p class="text-muted-foreground">
+                    Check out our API documentation and integration guides.
+                </p>
+                <div class="flex gap-4 justify-center">
+                    <a href="/api">
+                        <Button variant="default">API Reference</Button>
+                    </a>
+                    <a href="/docs">
+                        <Button variant="outline">Documentation</Button>
+                    </a>
+                </div>
+            </div>
+        </section> -->
+  </div>
+</MainLayout>

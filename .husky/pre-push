@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🚀 Running pre-push checks..."
+
+# Frontend checks
+echo "📦 Checking frontend..."
+npm run format:check:frontend
+cd frontend && npm run lint
+npm run type-check
+npm run build
+cd ..
+
+# Backend checks
+echo "🦀 Checking backend..."
+npm run format:check:backend
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --verbose
+
+echo "✅ All pre-push checks passed!"

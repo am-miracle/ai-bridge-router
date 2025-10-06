@@ -1,0 +1,48 @@
+{
+  "name": "bridge-router",
+  "version": "1.0.0",
+  "description": "Cross-chain bridge aggregator with Rust backend and Astro frontend",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "cargo run",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "cargo build --release",
+    "format": "npm run format:frontend && npm run format:backend",
+    "format:frontend": "prettier --write \"frontend/src/**/*.{js,jsx,ts,tsx,astro,json,css,md}\"",
+    "format:backend": "cargo fmt --all",
+    "format:check": "npm run format:check:frontend && npm run format:check:backend",
+    "format:check:frontend": "prettier --check \"frontend/src/**/*.{js,jsx,ts,tsx,astro,json,css,md}\"",
+    "format:check:backend": "cargo fmt --all -- --check",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "lint:backend": "cargo clippy --all-targets --all-features -- -D warnings",
+    "type-check": "npm --prefix frontend run type-check",
+    "test:backend": "cargo test --verbose",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.0",
+    "prettier-plugin-astro": "^0.13.0"
+  },
+  "lint-staged": {
+    "frontend/src/**/*.{js,jsx,ts,tsx,astro}": [
+      "prettier --write",
+      "cd frontend && eslint --fix"
+    ],
+    "frontend/src/**/*.{json,css,md}": [
+      "prettier --write"
+    ],
+    "src/**/*.rs": [
+      "cargo fmt --"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

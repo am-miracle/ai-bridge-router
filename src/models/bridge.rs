@@ -7,7 +7,7 @@ use crate::cache::CacheClient;
 /// Unified bridge quote response format
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeQuote {
-    /// Bridge name (e.g., "Connext", "Hop", "Axelar")
+    /// Bridge name (e.g., "Everclear", "Hop", "Axelar")
     pub bridge: String,
     /// Fee in native units (e.g., ETH, USDC)
     pub fee: f64,

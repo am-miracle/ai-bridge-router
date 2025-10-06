@@ -1,0 +1,41 @@
+---
+import "../styles/global.css";
+import { Navigation } from "@/components/Navigation";
+import { Footer } from "@/components/Footer";
+import { ScrollProgress } from "@/components/animations/ScrollProgress";
+import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
+
+const { content } = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{content?.title || "Bridge Router"}</title>
+    <script is:inline>
+      // Initialize theme before page renders to prevent flash
+      const theme =
+        localStorage.getItem("theme") ||
+        (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    </script>
+  </head>
+  <body class="min-h-screen bg-background text-foreground flex flex-col relative overflow-x-hidden">
+    {/* Background Ripple Effect */}
+    <div class="fixed inset-0 z-0">
+      <BackgroundRippleEffect client:load />
+    </div>
+
+    {/* Content */}
+    <div class="relative z-10 flex flex-col min-h-screen">
+      <ScrollProgress client:load />
+      <Navigation client:load />
+      <main class="container mx-auto px-4 py-8 flex-1">
+        <slot />
+      </main>
+      <Footer client:load />
+    </div>
+  </body>
+</html>

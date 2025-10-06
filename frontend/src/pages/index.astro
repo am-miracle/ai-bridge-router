@@ -1,0 +1,71 @@
+---
+export const prerender = true;
+
+import MainLayout from "../layouts/main.astro";
+import { AnimatedHero } from "@/components/homepage/AnimatedHero";
+import { AnimatedFeatureCard } from "@/components/homepage/AnimatedFeatureCard";
+import { AnimatedStatCard } from "@/components/homepage/AnimatedStatCard";
+import { heroContent, features, stats } from "@/config/homepage";
+import { defaultMeta } from "@/config/site";
+
+const content = {
+  title: defaultMeta.title,
+};
+---
+
+<MainLayout content={content}>
+  <div class="w-full">
+    {/* Hero Section */}
+    <section class="min-h-screen flex items-center justify-center py-20">
+      <div class="w-full max-w-6xl mx-auto px-4">
+        <AnimatedHero
+          title={heroContent.title}
+          description={heroContent.description}
+          primaryCTA={heroContent.primaryCTA}
+          secondaryCTA={heroContent.secondaryCTA}
+          client:load
+        />
+      </div>
+    </section>
+
+    {/* Features Section */}
+    <section class="min-h-screen flex items-center justify-center py-20">
+      <div class="w-full max-w-7xl mx-auto px-4">
+        <div class="text-center mb-12 md:mb-16">
+          <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">Why Choose Bridge Router?</h2>
+          <p class="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+            Experience seamless cross-chain transfers with the best rates and security
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          {
+            features.map((feature, index) => (
+              <AnimatedFeatureCard feature={feature} index={index} client:load />
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    {/* Stats Section */}
+    <section class="min-h-screen flex items-center justify-center py-20 relative">
+      <div
+        class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-blue-500/5 -z-10 rounded-2xl"
+      >
+      </div>
+      <div class="w-full max-w-6xl mx-auto px-4">
+        <div class="text-center mb-12 md:mb-16">
+          <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">Trusted by Thousands</h2>
+          <p class="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+            Real-time metrics that matter
+          </p>
+        </div>
+        <div
+          class="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 p-6 md:p-8 rounded-2xl border bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-2xl"
+        >
+          {stats.map((stat, index) => <AnimatedStatCard stat={stat} index={index} client:load />)}
+        </div>
+      </div>
+    </section>
+  </div>
+</MainLayout>
