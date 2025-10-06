@@ -88,6 +88,7 @@ pub struct BridgeQuoteRequest {
     pub from_chain: String,
     pub to_chain: String,
     pub amount: Option<String>,
+    pub slippage: f64,
 }
 
 /// Shared HTTP client configuration for all bridge clients
@@ -97,7 +98,6 @@ pub struct BridgeClientConfig {
     pub timeout: Duration,
     pub retries: u32,
     pub cache: Option<CacheClient>,
-    pub hop_config: Option<crate::services::bridge_client::hop::HopConfig>,
 }
 
 impl BridgeClientConfig {
@@ -114,7 +114,6 @@ impl BridgeClientConfig {
             timeout: Duration::from_secs(30),
             retries: 3,
             cache: None,
-            hop_config: None,
         }
     }
 
@@ -133,15 +132,6 @@ impl BridgeClientConfig {
     /// Set number of retries for failed requests
     pub fn with_retries(mut self, retries: u32) -> Self {
         self.retries = retries;
-        self
-    }
-
-    /// Set Hop configuration
-    pub fn with_hop_config(
-        mut self,
-        hop_config: crate::services::bridge_client::hop::HopConfig,
-    ) -> Self {
-        self.hop_config = Some(hop_config);
         self
     }
 }

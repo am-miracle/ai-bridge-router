@@ -157,7 +157,7 @@ impl RedisMonitor {
                 // Get additional metrics for detailed health check
                 match self.cache_client.get_stats().await {
                     Ok(stats) => {
-                        let mut issues = Vec::new();
+                        let mut issues = Vec::with_capacity(3); // Based on number of checks we perform
 
                         // Check memory usage
                         if stats.used_memory_bytes > 200 * 1024 * 1024 {

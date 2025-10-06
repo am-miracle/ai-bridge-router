@@ -171,23 +171,19 @@ async fn fetch_everclear_quote_once(
 
     info!("Requesting Everclear quote from: {}", url);
 
-    let response_result = tokio::time::timeout(
-        config.timeout,
-        config.client.post(&url).json(&everclear_request).send(),
-    )
-    .await;
+    let response_result = config
+        .client
+        .post(&url)
+        .json(&everclear_request)
+        .send()
+        .await;
 
     // Handle potential timeout or network error
     let response = match response_result {
-        Ok(Ok(resp)) => resp,
-        Ok(Err(e)) => {
+        Ok(resp) => resp,
+        Err(e) => {
             // Network error - create estimate
             info!("Everclear API network error: {}, creating estimate", e);
-            return create_everclear_estimate(request);
-        }
-        Err(_) => {
-            // Timeout - create estimate
-            info!("Everclear API timeout, creating estimate");
             return create_everclear_estimate(request);
         }
     };
@@ -395,6 +391,7 @@ mod tests {
             from_chain: "ethereum".to_string(),
             to_chain: "polygon".to_string(),
             amount: Some("1000000".to_string()),
+            slippage: 0.5,
         };
 
         let quote = create_everclear_estimate(&request).unwrap();

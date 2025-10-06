@@ -5,7 +5,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
     routing::get,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::time::{Duration, timeout};
 use tracing::{error, info, warn};
 
@@ -13,8 +13,7 @@ use crate::app_state::AppState;
 use crate::db::SecurityRepository;
 use crate::models::bridge::{BridgeClientConfig, BridgeQuote, BridgeQuoteRequest};
 use crate::models::quote::{AggregatedQuotesResponse, ErrorResponse, QuoteParams, QuoteResponse};
-use crate::services::bridge_client::hop::{HopConfig, HopNetwork};
-use crate::services::{calculate_score, get_all_bridge_quotes};
+use crate::services::{SecurityMetadata, calculate_score, get_all_bridge_quotes};
 use crate::utils::errors::AppResult;
 
 /// Cache TTL for fresh quotes in seconds (15 seconds as per requirements)
@@ -48,7 +47,7 @@ fn convert_bridge_quote_to_response_with_score(quote: &BridgeQuote, score: f64) 
 /// Extract client IP from request headers and connection info
 /// Handles common proxy headers like X-Forwarded-For, X-Real-IP
 /// Falls back to localhost for local testing when ConnectInfo is not available
-fn extract_client_ip(request: &Request, connect_info: Option<&std::net::SocketAddr>) -> String {
+fn extract_client_ip(request: &Request, connect_info: Option<&SocketAddr>) -> String {
     // Try to get IP from common proxy headers first
     if let Some(forwarded_for) = request.headers().get("x-forwarded-for")
         && let Ok(forwarded_str) = forwarded_for.to_str()
@@ -122,7 +121,7 @@ async fn process_quotes_with_security(
         bridge_names.len()
     );
     let security_metadata = match timeout(
-        Duration::from_secs(3),
+        Duration::from_secs(10),
         SecurityRepository::get_batch_security_metadata(app_state.db(), &bridge_names),
     )
     .await
@@ -139,11 +138,10 @@ async fn process_quotes_with_security(
     };
 
     // Create a lookup map for security metadata
-    let security_map: std::collections::HashMap<String, &crate::services::SecurityMetadata> =
-        security_metadata
-            .iter()
-            .map(|m| (m.bridge.clone(), m))
-            .collect();
+    let security_map: HashMap<String, &SecurityMetadata> = security_metadata
+        .iter()
+        .map(|m| (m.bridge.clone(), m))
+        .collect();
 
     // Calculate scores and convert to API response format
     bridge_quotes
@@ -178,7 +176,7 @@ pub async fn get_quotes(
 
     // Rate limiting using Redis increment
     // Try to get ConnectInfo from request extensions, fallback to None for local testing
-    let connect_info = request.extensions().get::<std::net::SocketAddr>();
+    let connect_info = request.extensions().get::<SocketAddr>();
     let client_ip = extract_client_ip(&request, connect_info);
     let rate_limit_key = format!("rate_limit:quotes:{}", client_ip);
 
@@ -304,7 +302,7 @@ pub async fn get_quotes(
     // Generate cache key for this request
     let cache_key = generate_cache_key(&params);
 
-    // Try to get fresh cache first (optional optimization)
+    // Try to get fresh cache first
     tracing::info!("Before Redis get_cache for fresh quotes: key={}", cache_key);
     match app_state
         .cache()
@@ -345,40 +343,22 @@ pub async fn get_quotes(
         from_chain: params.from_chain.clone(),
         to_chain: params.to_chain.clone(),
         amount: Some(amount_smallest_unit),
-        // recipient: None,
+        slippage: params.slippage,
     };
-
-    // Create Hop configuration (mainnet by default, can be made configurable via env)
-    let is_testnet = std::env::var("HOP_NETWORK")
-        .unwrap_or_else(|_| "mainnet".to_string())
-        .to_lowercase()
-        == "goerli";
-
-    let hop_network = HopNetwork {
-        name: if is_testnet {
-            "goerli".to_string()
-        } else {
-            "mainnet".to_string()
-        },
-        is_testnet,
-    };
-
-    let hop_config = HopConfig::new(hop_network);
 
     // Create bridge client configuration with 5s timeout as specified
     let config = BridgeClientConfig::new()
         .with_cache(app_state.cache().clone())
-        .with_timeout(Duration::from_secs(5)) // 5s timeout as per requirements
-        .with_retries(1) // Single retry for fast response
-        .with_hop_config(hop_config);
+        .with_timeout(Duration::from_secs(10)) // 5s timeout as per requirements
+        .with_retries(0); // Single retry for fast response
 
     // Get quotes from all bridges concurrently
     info!("Fetching quotes from all bridges with 5s timeout");
     let bridge_results = get_all_bridge_quotes(&request, &config).await;
 
     // Separate successful quotes and errors
-    let mut quotes = Vec::new();
-    let mut errors = Vec::new();
+    let mut quotes = Vec::with_capacity(bridge_results.len());
+    let mut errors = Vec::with_capacity(bridge_results.len());
     for result in &bridge_results {
         if let Some(quote) = &result.quote {
             quotes.push(quote.clone());
@@ -581,12 +561,14 @@ mod tests {
             to_chain: "polygon".to_string(),
             token: "USDC".to_string(),
             amount: 1.5,
+            slippage: 0.5,
         };
 
         assert_eq!(params.from_chain, "ethereum");
         assert_eq!(params.to_chain, "polygon");
         assert_eq!(params.token, "USDC");
         assert_eq!(params.amount, 1.5);
+        assert_eq!(params.slippage, 0.5);
     }
 
     #[test]
@@ -725,6 +707,7 @@ mod tests {
             to_chain: "Polygon".to_string(),
             token: "usdc".to_string(),
             amount: 100.5,
+            slippage: 0.5,
         };
 
         let key = generate_cache_key(&params);

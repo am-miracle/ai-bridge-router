@@ -11,7 +11,7 @@ async fn test_bridge_quote_request_structure() {
         from_chain: "ethereum".to_string(),
         to_chain: "polygon".to_string(),
         amount: Some("1000000".to_string()),
-        // recipient: Some("0x123...".to_string()),
+        slippage: 0.5,
     };
 
     assert_eq!(request.asset, "USDC");
@@ -71,6 +71,7 @@ async fn test_get_all_bridge_quotes_empty_response() {
         from_chain: "invalid_chain".to_string(),
         to_chain: "another_invalid_chain".to_string(),
         amount: None,
+        slippage: 0.5,
     };
 
     let config = BridgeClientConfig::new()
@@ -107,7 +108,7 @@ async fn test_parallel_execution() {
         from_chain: "ethereum".to_string(),
         to_chain: "polygon".to_string(),
         amount: Some("1000000".to_string()),
-        // recipient: None,
+        slippage: 0.5,
     };
 
     let config = BridgeClientConfig::new()
@@ -197,7 +198,7 @@ mod performance_tests {
             from_chain: "ethereum".to_string(),
             to_chain: "polygon".to_string(),
             amount: Some("1000000".to_string()),
-            // recipient: None,
+            slippage: 0.5,
         };
 
         let config = BridgeClientConfig::new()
@@ -229,7 +230,7 @@ mod performance_tests {
             from_chain: "ethereum".to_string(),
             to_chain: "polygon".to_string(),
             amount: Some("1000000".to_string()),
-            // recipient: None,
+            slippage: 0.5,
         };
 
         // Very short timeout to force timeouts

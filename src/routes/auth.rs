@@ -20,8 +20,6 @@ pub async fn create_api_key_endpoint(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<CreateApiKeyRequest>,
 ) -> Result<Json<ApiKeyResponse>, (StatusCode, Json<serde_json::Value>)> {
-    info!("Creating new API key: {}", request.name);
-
     match create_api_key(request, &app_state).await {
         Ok(api_key) => {
             info!("Successfully created API key: {}", api_key.name);
@@ -44,8 +42,6 @@ pub async fn create_api_key_endpoint(
 pub async fn list_api_keys_endpoint(
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<ApiKeyResponse>>, (StatusCode, Json<serde_json::Value>)> {
-    info!("Listing all API keys");
-
     match list_api_keys(&app_state).await {
         Ok(api_keys) => {
             info!("Successfully listed {} API keys", api_keys.len());
@@ -69,8 +65,6 @@ pub async fn revoke_api_key_endpoint(
     State(app_state): State<Arc<AppState>>,
     axum::extract::Path(api_key_id): axum::extract::Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    info!("Revoking API key: {}", api_key_id);
-
     match revoke_api_key(api_key_id, &app_state).await {
         Ok(_) => {
             info!("Successfully revoked API key: {}", api_key_id);

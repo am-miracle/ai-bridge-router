@@ -67,7 +67,6 @@ pub struct CorsConfig {
 pub struct BridgeConfig {
     pub timeout_seconds: u64,
     pub retries: u32,
-    pub hop_network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,7 +118,6 @@ impl Settings {
             .set_default("cors.allow_credentials", true)?
             .set_default("bridges.timeout_seconds", 5)?
             .set_default("bridges.retries", 1)?
-            .set_default("bridges.hop_network", "mainnet")?
             .set_default("cache.quote_ttl_seconds", 15)?
             .set_default("cache.stale_ttl_seconds", 300)?
             .set_default("cache.rate_limit_per_minute", 100)?
@@ -146,7 +144,6 @@ impl Settings {
             ),
             ("REDIS_COMMAND_TIMEOUT", "redis.command_timeout_seconds"),
             ("ALLOWED_ORIGINS", "cors.allowed_origins"),
-            ("HOP_NETWORK", "bridges.hop_network"),
             ("RUST_LOG", "logging.level"),
             ("RUST_LOG_FORMAT", "logging.format"),
         ];
@@ -262,12 +259,6 @@ impl Settings {
             });
         }
 
-        if !["mainnet", "goerli", "testnet"].contains(&self.bridges.hop_network.as_str()) {
-            return Err(ConfigValidationError::ValidationError {
-                message: "Hop network must be 'mainnet', 'goerli', or 'testnet'".to_string(),
-            });
-        }
-
         // Cache validation
         if self.cache.quote_ttl_seconds == 0 {
             return Err(ConfigValidationError::ValidationError {
@@ -342,7 +333,6 @@ mod tests {
             .set_default("cors.allow_credentials", true)?
             .set_default("bridges.timeout_seconds", 5)?
             .set_default("bridges.retries", 1)?
-            .set_default("bridges.hop_network", "mainnet")?
             .set_default("cache.quote_ttl_seconds", 15)?
             .set_default("cache.stale_ttl_seconds", 300)?
             .set_default("cache.rate_limit_per_minute", 100)?
@@ -366,7 +356,7 @@ mod tests {
         assert_eq!(settings.database.max_connections, 10);
         assert_eq!(settings.database.min_connections, 1);
         assert_eq!(settings.redis.pool_size, 10);
-        assert_eq!(settings.bridges.hop_network, "mainnet");
+
         assert_eq!(settings.cache.quote_ttl_seconds, 15);
         assert_eq!(settings.logging.level, "info");
         assert_eq!(settings.logging.format, "pretty");
@@ -424,7 +414,6 @@ mod tests {
             .set_default("cors.allow_credentials", true)?
             .set_default("bridges.timeout_seconds", 5)?
             .set_default("bridges.retries", 1)?
-            .set_default("bridges.hop_network", "mainnet")?
             .set_default("cache.quote_ttl_seconds", 15)?
             .set_default("cache.stale_ttl_seconds", 300)?
             .set_default("cache.rate_limit_per_minute", 100)?

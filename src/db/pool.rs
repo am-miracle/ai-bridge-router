@@ -6,8 +6,6 @@ use tracing::{error, info};
 
 /// Initialize PostgreSQL connection pool with Settings configuration
 pub async fn init_pg_pool_with_config(settings: &Settings) -> AppResult<PgPool> {
-    info!("Connecting to database with configuration");
-
     let pool = PgPoolOptions::new()
         .max_connections(settings.database.max_connections)
         .min_connections(settings.database.min_connections)
@@ -33,8 +31,6 @@ pub async fn init_pg_pool_with_config(settings: &Settings) -> AppResult<PgPool> 
 
 /// Run database migrations
 async fn run_migrations(pool: &PgPool) -> AppResult<()> {
-    info!("Running database migrations...");
-
     // Create migrations table if it doesn't exist
     sqlx::query(
         r#"

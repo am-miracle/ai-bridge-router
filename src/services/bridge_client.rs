@@ -25,8 +25,8 @@ pub async fn get_all_bridge_quotes(
         request.asset, request.from_chain, request.to_chain
     );
 
-    // Per-bridge timeouts (in seconds)
-    let bridge_timeout = Duration::from_secs(3);
+    // Per-bridge timeouts from config
+    let bridge_timeout = config.timeout;
 
     let everclear_fut = timeout(bridge_timeout, everclear::get_quote(request, config));
     let hop_fut = timeout(bridge_timeout, hop::get_quote(request, config));

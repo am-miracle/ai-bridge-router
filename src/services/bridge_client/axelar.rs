@@ -226,23 +226,14 @@ async fn fetch_axelar_quote_once(
         gas_multiplier: "auto".to_string(),
     };
 
-    let response_result = tokio::time::timeout(
-        config.timeout,
-        config.client.post(&url).json(&gas_fee_request).send(),
-    )
-    .await;
+    let response_result = config.client.post(&url).json(&gas_fee_request).send().await;
 
     // Handle potential timeout or network error
     let response = match response_result {
-        Ok(Ok(resp)) => resp,
-        Ok(Err(e)) => {
+        Ok(resp) => resp,
+        Err(e) => {
             // Network error - create estimate
             info!("Axelar API network error: {}, creating estimate", e);
-            return create_axelar_estimate(request);
-        }
-        Err(_) => {
-            // Timeout - create estimate
-            info!("Axelar API timeout, creating estimate");
             return create_axelar_estimate(request);
         }
     };
@@ -414,6 +405,7 @@ mod tests {
             to_chain: "cosmos".to_string(),
             amount: Some("1000000".to_string()),
             // recipient: None,
+            slippage: 0.5,
         };
 
         let quote = create_axelar_estimate(&request).unwrap();

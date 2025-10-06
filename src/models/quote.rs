@@ -11,6 +11,14 @@ pub struct QuoteParams {
     pub token: String,
     /// Amount to bridge as float (e.g., 1.5 for 1.5 USDC)
     pub amount: f64,
+    /// Optional slippage tolerance as percentage (e.g., 0.5 for 0.5%)
+    /// Defaults to 0.5% if not provided
+    #[serde(default = "default_slippage")]
+    pub slippage: f64,
+}
+
+fn default_slippage() -> f64 {
+    0.5 // 0.5% default slippage
 }
 
 /// Individual quote response format as specified

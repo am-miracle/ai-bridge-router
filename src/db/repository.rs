@@ -7,7 +7,6 @@ use crate::models::security::{AuditReport, ExploitHistory};
 use crate::services::scoring::SecurityMetadata;
 use crate::utils::errors::AppResult;
 
-/// Repository for security-related database operations
 pub struct SecurityRepository;
 
 impl SecurityRepository {
@@ -164,8 +163,6 @@ impl SecurityRepository {
         pool: &PgPool,
         bridge_name: &str,
     ) -> AppResult<Option<AuditReport>> {
-        debug!("Fetching latest audit for bridge: {}", bridge_name);
-
         let latest_audit = sqlx::query_as::<_, AuditReport>(
             r#"
             SELECT id, bridge, audit_firm, audit_date, result, created_at
@@ -192,8 +189,6 @@ impl SecurityRepository {
 
     /// Get count of exploits by bridge
     pub async fn _get_exploit_count_by_bridge(pool: &PgPool) -> AppResult<Vec<(String, i64)>> {
-        debug!("Fetching exploit counts by bridge");
-
         let counts = sqlx::query(
             r#"
             SELECT bridge, COUNT(*) as count
@@ -222,8 +217,6 @@ impl SecurityRepository {
     pub async fn _get_total_loss_by_bridge(
         pool: &PgPool,
     ) -> AppResult<Vec<(String, Option<rust_decimal::Decimal>)>> {
-        debug!("Fetching total loss amounts by bridge");
-
         let totals = sqlx::query(
             r#"
             SELECT bridge, SUM(loss_amount) as total_loss
@@ -254,8 +247,6 @@ impl SecurityRepository {
         pool: &PgPool,
         bridge_name: &str,
     ) -> AppResult<SecurityMetadata> {
-        debug!("Fetching security metadata for bridge: {}", bridge_name);
-
         // Get audit information
         let audit_info = sqlx::query(
             r#"
@@ -322,13 +313,8 @@ impl SecurityRepository {
         pool: &PgPool,
         bridge_names: &[String],
     ) -> AppResult<Vec<SecurityMetadata>> {
-        debug!(
-            "Fetching batch security metadata for {} bridges",
-            bridge_names.len()
-        );
-
         if bridge_names.is_empty() {
-            return Ok(vec![]);
+            return Ok(Vec::with_capacity(0));
         }
 
         // Build placeholders for the IN clause
