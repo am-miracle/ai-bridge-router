@@ -7,6 +7,8 @@ node_modules
 # Husky
 .husky/_
 
+frontent/,vercel
+
 # Environment variables
 .env
 .env.local
