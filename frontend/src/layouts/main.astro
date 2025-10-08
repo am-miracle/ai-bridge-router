@@ -4,6 +4,7 @@ import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { ScrollProgress } from "@/components/animations/ScrollProgress";
 import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
+import { Toaster } from "@/components/ui/toaster";
 
 const { content } = Astro.props;
 ---
@@ -37,5 +38,8 @@ const { content } = Astro.props;
       </main>
       <Footer client:load />
     </div>
+
+    {/* Toast Notifications */}
+    <Toaster client:load />
   </body>
 </html>

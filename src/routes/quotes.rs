@@ -14,10 +14,13 @@ use crate::db::SecurityRepository;
 use crate::models::bridge::{BridgeClientConfig, BridgeQuote, BridgeQuoteRequest};
 use crate::models::quote::{
     AggregatedQuotesResponse, BridgeQuoteError, CostBreakdown, CostDetails, ErrorResponse,
-    OutputDetails, QuoteParams, QuoteResponse, RequestMetadata, ResponseMetadata, SecurityDetails,
-    TimingDetails, categorize_security, categorize_timing, format_timing,
+    GasDetails, OutputDetails, QuoteParams, QuoteResponse, RequestMetadata, ResponseMetadata,
+    SecurityDetails, TimingDetails, categorize_security, categorize_timing, format_timing,
 };
-use crate::services::{SecurityMetadata, calculate_score, get_all_bridge_quotes};
+use crate::services::{
+    GasPrice, SecurityMetadata, TokenPrice, calculate_score, convert_to_usd, estimate_gas_cost_usd,
+    gas_limits, get_all_bridge_quotes,
+};
 use crate::utils::errors::AppResult;
 
 /// Cache TTL for fresh quotes in seconds (15 seconds)
@@ -116,6 +119,9 @@ fn convert_to_quote_response(
     quote: &BridgeQuote,
     params: &QuoteParams,
     security_metadata: Option<&SecurityMetadata>,
+    source_gas: Option<&GasPrice>,
+    dest_gas: Option<&GasPrice>,
+    token_price: Option<&TokenPrice>,
 ) -> QuoteResponse {
     let has_audit = security_metadata.map(|s| s.has_audit).unwrap_or(false);
     let has_exploit = security_metadata.map(|s| s.has_exploit).unwrap_or(false);
@@ -130,14 +136,44 @@ fn convert_to_quote_response(
     let expected_output = params.amount - quote.fee;
     let minimum_output = expected_output * (1.0 - params.slippage / 100.0);
 
-    // For MVP, we don't have real-time gas prices yet
-    // So we'll just show the bridge fee
+    // Calculate gas costs
+    let (source_gas_usd, dest_gas_usd, gas_details) =
+        if let (Some(src), Some(dst)) = (source_gas, dest_gas) {
+            let source_cost = estimate_gas_cost_usd(src, gas_limits::BRIDGE_DEPOSIT, false);
+            let dest_cost = estimate_gas_cost_usd(dst, gas_limits::BRIDGE_WITHDRAWAL, false);
+
+            let details = GasDetails {
+                source_gas_usd: source_cost,
+                destination_gas_usd: dest_cost,
+                source_chain: params.from_chain.clone(),
+                destination_chain: params.to_chain.clone(),
+                source_gas_price_gwei: src.propose_gas_price,
+                destination_gas_price_gwei: dst.propose_gas_price,
+                source_gas_limit: gas_limits::BRIDGE_DEPOSIT,
+                destination_gas_limit: gas_limits::BRIDGE_WITHDRAWAL,
+            };
+
+            (source_cost, dest_cost, Some(details))
+        } else {
+            (0.0, 0.0, None)
+        };
+
+    let total_gas_usd = source_gas_usd + dest_gas_usd;
+
+    // Convert token fee to USD
+    let total_fee_usd = if let Some(price) = token_price {
+        convert_to_usd(quote.fee, price)
+    } else {
+        quote.fee // Fallback: assume 1:1 USD (for stablecoins)
+    };
+
     let cost = CostDetails {
         total_fee: quote.fee,
-        total_fee_usd: quote.fee, // TODO: Add token price conversion
+        total_fee_usd,
         breakdown: CostBreakdown {
             bridge_fee: quote.fee,
-            gas_estimate_usd: 0.0, // TODO: Add gas price fetching
+            gas_estimate_usd: total_gas_usd,
+            gas_details,
         },
     };
 
@@ -189,7 +225,7 @@ fn convert_to_quote_response(
     }
 }
 
-/// Process quotes with security metadata
+/// Process quotes with security metadata and gas prices
 async fn process_quotes_with_security(
     bridge_quotes: &[BridgeQuote],
     params: &QuoteParams,
@@ -198,13 +234,25 @@ async fn process_quotes_with_security(
     // Get bridge names for security metadata lookup
     let bridge_names: Vec<String> = bridge_quotes.iter().map(|q| q.bridge.clone()).collect();
 
-    // Fetch security metadata for all bridges in batch
-    let security_metadata = match timeout(
-        Duration::from_secs(10),
-        SecurityRepository::get_batch_security_metadata(app_state.db(), &bridge_names),
-    )
-    .await
-    {
+    // Fetch security metadata, gas prices, and token price in parallel
+    let (security_result, source_gas_result, dest_gas_result, token_price_result) = tokio::join!(
+        timeout(
+            Duration::from_secs(10),
+            SecurityRepository::get_batch_security_metadata(app_state.db(), &bridge_names),
+        ),
+        app_state
+            .gas_price_service()
+            .get_gas_price(&params.from_chain),
+        app_state
+            .gas_price_service()
+            .get_gas_price(&params.to_chain),
+        app_state
+            .token_price_service()
+            .get_token_price(&params.token),
+    );
+
+    // Process security metadata
+    let security_metadata = match security_result {
         Ok(Ok(metadata)) => metadata,
         Ok(Err(e)) => {
             error!("Failed to fetch security metadata: {}", e);
@@ -213,6 +261,56 @@ async fn process_quotes_with_security(
         Err(_) => {
             error!("Timeout fetching security metadata");
             vec![]
+        }
+    };
+
+    // Process gas prices
+    let source_gas = match source_gas_result {
+        Ok(gas) => {
+            info!(
+                "Fetched {} gas price: {} Gwei",
+                params.from_chain, gas.propose_gas_price
+            );
+            Some(gas)
+        }
+        Err(e) => {
+            warn!(
+                "Failed to fetch {} gas price: {}, using fallback",
+                params.from_chain, e
+            );
+            None
+        }
+    };
+
+    let dest_gas = match dest_gas_result {
+        Ok(gas) => {
+            info!(
+                "Fetched {} gas price: {} Gwei",
+                params.to_chain, gas.propose_gas_price
+            );
+            Some(gas)
+        }
+        Err(e) => {
+            warn!(
+                "Failed to fetch {} gas price: {}, using fallback",
+                params.to_chain, e
+            );
+            None
+        }
+    };
+
+    // Process token price
+    let token_price = match token_price_result {
+        Ok(price) => {
+            info!("Fetched {} price: ${:.4}", params.token, price.usd_price);
+            Some(price)
+        }
+        Err(e) => {
+            warn!(
+                "Failed to fetch {} price: {}, using fallback",
+                params.token, e
+            );
+            None
         }
     };
 
@@ -227,7 +325,14 @@ async fn process_quotes_with_security(
         .iter()
         .map(|quote| {
             let security = security_map.get(&quote.bridge).copied();
-            convert_to_quote_response(quote, params, security)
+            convert_to_quote_response(
+                quote,
+                params,
+                security,
+                source_gas.as_ref(),
+                dest_gas.as_ref(),
+                token_price.as_ref(),
+            )
         })
         .collect()
 }

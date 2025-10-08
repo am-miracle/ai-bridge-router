@@ -1,9 +1,11 @@
 use crate::cache::CacheClient;
 use crate::config::Settings;
 use crate::db::pool::init_pg_pool_with_config;
+use crate::services::{GasPriceService, TokenPriceService};
 use crate::utils::errors::{AppError, AppResult};
 
 use sqlx::PgPool;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Clone)]
@@ -11,6 +13,8 @@ pub struct AppState {
     pub start_time: Instant,
     pub pg_pool: PgPool,
     pub redis_client: CacheClient,
+    pub gas_price_service: Arc<GasPriceService>,
+    pub token_price_service: Arc<TokenPriceService>,
 }
 
 impl AppState {
@@ -28,10 +32,20 @@ impl AppState {
         // Initialize Redis client with settings
         let redis_client = CacheClient::with_settings(&settings).await?;
 
+        // Initialize gas price service with Etherscan V2 API
+        let gas_price_service =
+            Arc::new(GasPriceService::new(settings.api_keys.etherscan_v2.clone()));
+
+        // Initialize token price service
+        let token_price_service =
+            Arc::new(TokenPriceService::new(settings.api_keys.coingecko.clone()));
+
         Ok(Self {
             start_time,
             pg_pool,
             redis_client,
+            gas_price_service,
+            token_price_service,
         })
     }
 
@@ -48,5 +62,15 @@ impl AppState {
     /// Get server uptime in seconds
     pub fn uptime_seconds(&self) -> u64 {
         self.start_time.elapsed().as_secs()
+    }
+
+    /// Get gas price service reference
+    pub fn gas_price_service(&self) -> &GasPriceService {
+        &self.gas_price_service
+    }
+
+    /// Get token price service reference
+    pub fn token_price_service(&self) -> &TokenPriceService {
+        &self.token_price_service
     }
 }

@@ -97,7 +97,7 @@ export function RouteCard({ route, rank }: RouteCardProps) {
             </span>
 
             {/* Warning badges */}
-            {route.warnings.includes("slow_route") && (
+            {route.warnings?.includes("slow_route") && (
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
                 title="This route is slower than alternatives"
@@ -105,7 +105,7 @@ export function RouteCard({ route, rank }: RouteCardProps) {
                 Warning: Slow
               </span>
             )}
-            {route.warnings.includes("low_security") && (
+            {route.warnings?.includes("low_security") && (
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                 title="Low security score - Use with caution"
@@ -125,9 +125,59 @@ export function RouteCard({ route, rank }: RouteCardProps) {
         </div>
 
         {/* Cost */}
-        <div className="flex items-baseline justify-between py-2 border-y">
-          <dt className="text-sm text-muted-foreground">Total Cost</dt>
-          <dd className="text-xl font-bold">${route.cost.total_fee_usd.toFixed(2)}</dd>
+        <div className="py-2 border-y space-y-1.5">
+          <div className="flex items-baseline justify-between">
+            <dt className="text-sm text-muted-foreground">Total Cost</dt>
+            <dd className="text-xl font-bold">${route.cost.total_fee_usd.toFixed(2)}</dd>
+          </div>
+
+          {/* Gas breakdown */}
+          {route.cost.breakdown.gas_estimate_usd > 0 && (
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <div className="flex justify-between">
+                <span>Bridge Fee</span>
+                <span className="font-medium">${route.cost.breakdown.bridge_fee.toFixed(4)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Gas (Est.)</span>
+                <span className="font-medium">
+                  ${route.cost.breakdown.gas_estimate_usd.toFixed(4)}
+                </span>
+              </div>
+
+              {/* Detailed gas info tooltip */}
+              {route.cost.breakdown.gas_details && (
+                <details className="cursor-pointer hover:text-foreground transition-colors">
+                  <summary className="text-[10px] uppercase tracking-wide font-semibold mt-1">
+                    Gas Details ▼
+                  </summary>
+                  <div className="mt-1 pl-2 border-l-2 border-muted space-y-0.5">
+                    <div className="flex justify-between">
+                      <span>{route.cost.breakdown.gas_details.source_chain}</span>
+                      <span className="font-medium">
+                        ${route.cost.breakdown.gas_details.source_gas_usd.toFixed(4)}
+                      </span>
+                    </div>
+                    <div className="text-[10px]">
+                      {route.cost.breakdown.gas_details.source_gas_price_gwei.toFixed(2)} Gwei ×{" "}
+                      {route.cost.breakdown.gas_details.source_gas_limit.toLocaleString()} gas
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span>{route.cost.breakdown.gas_details.destination_chain}</span>
+                      <span className="font-medium">
+                        ${route.cost.breakdown.gas_details.destination_gas_usd.toFixed(4)}
+                      </span>
+                    </div>
+                    <div className="text-[10px]">
+                      {route.cost.breakdown.gas_details.destination_gas_price_gwei.toFixed(2)} Gwei
+                      × {route.cost.breakdown.gas_details.destination_gas_limit.toLocaleString()}{" "}
+                      gas
+                    </div>
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Output */}

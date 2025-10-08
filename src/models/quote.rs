@@ -39,6 +39,30 @@ pub struct CostBreakdown {
     pub bridge_fee: f64,
     /// Estimated gas cost in USD (source + destination)
     pub gas_estimate_usd: f64,
+    /// Detailed gas breakdown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_details: Option<GasDetails>,
+}
+
+/// Detailed gas cost breakdown
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GasDetails {
+    /// Source chain gas cost in USD
+    pub source_gas_usd: f64,
+    /// Destination chain gas cost in USD
+    pub destination_gas_usd: f64,
+    /// Source chain name
+    pub source_chain: String,
+    /// Destination chain name
+    pub destination_chain: String,
+    /// Source gas price in Gwei
+    pub source_gas_price_gwei: f64,
+    /// Destination gas price in Gwei
+    pub destination_gas_price_gwei: f64,
+    /// Source gas limit
+    pub source_gas_limit: u64,
+    /// Destination gas limit
+    pub destination_gas_limit: u64,
 }
 
 /// Output amount details

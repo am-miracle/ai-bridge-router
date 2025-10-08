@@ -507,6 +507,12 @@ mod security_integration_tests {
             start_time: Instant::now(),
             pg_pool: pool,
             redis_client: cache_client,
+            gas_price_service: std::sync::Arc::new(bridge_router::services::GasPriceService::new(
+                None,
+            )),
+            token_price_service: std::sync::Arc::new(
+                bridge_router::services::TokenPriceService::new(None),
+            ),
         }
     }
 }

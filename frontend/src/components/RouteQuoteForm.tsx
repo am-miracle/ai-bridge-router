@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { FadeIn } from "@/components/animations/FadeIn";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ interface RouteQuoteFormProps {
   supportedChains: readonly Chain[];
   commonTokens: readonly Token[];
   initialErrors?: Record<string, string[]>;
-  actionError?: { message: string };
+  actionError?: { message?: string } | string;
   actionUrl: string;
 }
 
@@ -47,21 +48,43 @@ export function RouteQuoteForm({
     if (window.location.search.includes("_action=")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    // Show validation errors as toasts
+    if (Object.keys(initialErrors).length > 0) {
+      Object.entries(initialErrors).forEach(([field, errors]) => {
+        const fieldName = field.replace(/([A-Z])/g, " $1").toLowerCase();
+        toast.error(`${fieldName}: ${errors.join(", ")}`);
+      });
+    }
+
+    // Show action error as toast
+    if (actionError) {
+      console.log("Action error:", actionError);
+      const errorMessage =
+        typeof actionError === "string"
+          ? actionError
+          : (actionError as any).message || JSON.stringify(actionError) || "An error occurred";
+      toast.error(errorMessage);
+      // Clear loading state if there was an error
+      setIsLoading(false);
+      toast.dismiss("fetching-quotes");
+    }
+  }, [initialErrors, actionError]);
+
+  const handleSubmit = () => {
     setIsLoading(true);
+    toast.loading("Fetching quotes from bridges...", { id: "fetching-quotes" });
   };
 
   return (
     <FadeIn>
       <section
-        className="p-6 rounded-xl border bg-card shadow-lg"
+        className="p-6 rounded-xl border bg-card shadow-lg max-w-lg mx-auto"
         aria-labelledby="quote-form-heading"
       >
-        <h2 id="quote-form-heading" className="text-2xl font-bold mb-6">
+        {/*<h2 id="quote-form-heading" className="text-2xl font-bold mb-6">
           Get Route Quotes
-        </h2>
+        </h2>*/}
 
         <form
           ref={formRef}
@@ -79,13 +102,7 @@ export function RouteQuoteForm({
               </span>
             </Label>
             <Select name="sourceChain" required>
-              <SelectTrigger
-                id="sourceChain"
-                aria-required="true"
-                aria-invalid={initialErrors.sourceChain ? "true" : "false"}
-                aria-describedby={initialErrors.sourceChain ? "sourceChain-error" : undefined}
-                className="w-full"
-              >
+              <SelectTrigger id="sourceChain" aria-required="true" className="w-full">
                 <SelectValue placeholder="Select source chain" />
               </SelectTrigger>
               <SelectContent>
@@ -96,11 +113,6 @@ export function RouteQuoteForm({
                 ))}
               </SelectContent>
             </Select>
-            {initialErrors.sourceChain && (
-              <p id="sourceChain-error" className="text-sm text-destructive" role="alert">
-                {initialErrors.sourceChain.join(", ")}
-              </p>
-            )}
           </div>
 
           {/* Destination Chain */}
@@ -112,15 +124,7 @@ export function RouteQuoteForm({
               </span>
             </Label>
             <Select name="destinationChain" required>
-              <SelectTrigger
-                id="destinationChain"
-                aria-required="true"
-                aria-invalid={initialErrors.destinationChain ? "true" : "false"}
-                aria-describedby={
-                  initialErrors.destinationChain ? "destinationChain-error" : undefined
-                }
-                className="w-full"
-              >
+              <SelectTrigger id="destinationChain" aria-required="true" className="w-full">
                 <SelectValue placeholder="Select destination chain" />
               </SelectTrigger>
               <SelectContent>
@@ -131,11 +135,6 @@ export function RouteQuoteForm({
                 ))}
               </SelectContent>
             </Select>
-            {initialErrors.destinationChain && (
-              <p id="destinationChain-error" className="text-sm text-destructive" role="alert">
-                {initialErrors.destinationChain.join(", ")}
-              </p>
-            )}
           </div>
 
           {/* Token */}
@@ -147,13 +146,7 @@ export function RouteQuoteForm({
               </span>
             </Label>
             <Select name="tokenAddress" required>
-              <SelectTrigger
-                id="tokenAddress"
-                aria-required="true"
-                aria-invalid={initialErrors.tokenAddress ? "true" : "false"}
-                aria-describedby={initialErrors.tokenAddress ? "tokenAddress-error" : undefined}
-                className="w-full"
-              >
+              <SelectTrigger id="tokenAddress" aria-required="true" className="w-full">
                 <SelectValue placeholder="Select token" />
               </SelectTrigger>
               <SelectContent>
@@ -164,11 +157,6 @@ export function RouteQuoteForm({
                 ))}
               </SelectContent>
             </Select>
-            {initialErrors.tokenAddress && (
-              <p id="tokenAddress-error" className="text-sm text-destructive" role="alert">
-                {initialErrors.tokenAddress.join(", ")}
-              </p>
-            )}
           </div>
 
           {/* Amount */}
@@ -188,18 +176,11 @@ export function RouteQuoteForm({
               placeholder="0.0"
               required
               aria-required="true"
-              aria-invalid={initialErrors.amount ? "true" : "false"}
-              aria-describedby={initialErrors.amount ? "amount-error" : "amount-hint"}
+              aria-describedby="amount-hint"
             />
-            {initialErrors.amount ? (
-              <p id="amount-error" className="text-sm text-destructive" role="alert">
-                {initialErrors.amount.join(", ")}
-              </p>
-            ) : (
-              <p id="amount-hint" className="text-sm text-muted-foreground">
-                Enter the amount you want to bridge
-              </p>
-            )}
+            <p id="amount-hint" className="text-sm text-muted-foreground">
+              Enter the amount you want to bridge
+            </p>
           </div>
 
           {/* Slippage */}
@@ -216,18 +197,11 @@ export function RouteQuoteForm({
               pattern="[0-9]*[.]?[0-9]*"
               placeholder="0.5"
               defaultValue="0.5"
-              aria-invalid={initialErrors.slippage ? "true" : "false"}
-              aria-describedby={initialErrors.slippage ? "slippage-error" : "slippage-hint"}
+              aria-describedby="slippage-hint"
             />
-            {initialErrors.slippage ? (
-              <p id="slippage-error" className="text-sm text-destructive" role="alert">
-                {initialErrors.slippage.join(", ")}
-              </p>
-            ) : (
-              <p id="slippage-hint" className="text-sm text-muted-foreground">
-                Maximum price slippage you're willing to accept (0-50%)
-              </p>
-            )}
+            <p id="slippage-hint" className="text-sm text-muted-foreground">
+              Maximum price slippage you're willing to accept (0-50%)
+            </p>
           </div>
 
           {/* Recipient Address (Optional) */}
@@ -264,16 +238,6 @@ export function RouteQuoteForm({
               "Get Quotes"
             )}
           </Button>
-
-          {/* General Error Message */}
-          {actionError && (
-            <div
-              className="p-4 rounded-lg bg-destructive/10 border border-destructive"
-              role="alert"
-            >
-              <p className="text-sm text-destructive font-medium">{actionError.message}</p>
-            </div>
-          )}
         </form>
       </section>
     </FadeIn>

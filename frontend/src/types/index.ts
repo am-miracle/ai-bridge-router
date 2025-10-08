@@ -45,9 +45,21 @@ export interface SupportCategory {
 }
 
 // New detailed bridge route types (MVP v1)
+export interface GasDetails {
+  source_gas_usd: number;
+  destination_gas_usd: number;
+  source_chain: string;
+  destination_chain: string;
+  source_gas_price_gwei: number;
+  destination_gas_price_gwei: number;
+  source_gas_limit: number;
+  destination_gas_limit: number;
+}
+
 export interface CostBreakdown {
   bridge_fee: number;
   gas_estimate_usd: number;
+  gas_details?: GasDetails;
 }
 
 export interface CostDetails {

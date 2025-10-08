@@ -29,6 +29,7 @@ pub struct Settings {
     pub bridges: BridgeConfig,
     pub cache: CacheConfig,
     pub logging: LoggingConfig,
+    pub api_keys: ApiKeysConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +83,14 @@ pub struct LoggingConfig {
     pub format: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeysConfig {
+    /// Etherscan V2 API key (works across 50+ chains)
+    pub etherscan_v2: Option<String>,
+    /// CoinGecko API key for token prices
+    pub coingecko: Option<String>,
+}
+
 impl Settings {
     /// Load configuration from multiple sources with layered priority:
     /// 1. Default values (for non-sensitive config)
@@ -122,7 +131,9 @@ impl Settings {
             .set_default("cache.stale_ttl_seconds", 300)?
             .set_default("cache.rate_limit_per_minute", 100)?
             .set_default("logging.level", "info")?
-            .set_default("logging.format", "pretty")?;
+            .set_default("logging.format", "pretty")?
+            .set_default("api_keys.etherscan_v2", None::<String>)?
+            .set_default("api_keys.coingecko", None::<String>)?;
 
         // Layer 2: Load from config file (optional)
         if std::path::Path::new("config.toml").exists() {
@@ -146,6 +157,8 @@ impl Settings {
             ("ALLOWED_ORIGINS", "cors.allowed_origins"),
             ("RUST_LOG", "logging.level"),
             ("RUST_LOG_FORMAT", "logging.format"),
+            ("ETHERSCAN_API_KEY", "api_keys.etherscan_v2"),
+            ("COINGECKO_API_KEY", "api_keys.coingecko"),
         ];
 
         for (env_key, config_key) in env_vars {
@@ -337,7 +350,9 @@ mod tests {
             .set_default("cache.stale_ttl_seconds", 300)?
             .set_default("cache.rate_limit_per_minute", 100)?
             .set_default("logging.level", "info")?
-            .set_default("logging.format", "pretty")?;
+            .set_default("logging.format", "pretty")?
+            .set_default("api_keys.etherscan_v2", None::<String>)?
+            .set_default("api_keys.coingecko", None::<String>)?;
 
         let config = config_builder.build()?;
         let settings: Settings = config.try_deserialize()?;
@@ -418,7 +433,9 @@ mod tests {
             .set_default("cache.stale_ttl_seconds", 300)?
             .set_default("cache.rate_limit_per_minute", 100)?
             .set_default("logging.level", "info")?
-            .set_default("logging.format", "pretty")?;
+            .set_default("logging.format", "pretty")?
+            .set_default("api_keys.etherscan_v2", None::<String>)?
+            .set_default("api_keys.coingecko", None::<String>)?;
 
         // Apply environment variable parsing logic
         if let Ok(val) = std::env::var("ALLOWED_ORIGINS") {

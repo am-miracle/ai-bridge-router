@@ -107,6 +107,7 @@ mod quotes_integration_tests {
                         breakdown: CostBreakdown {
                             bridge_fee: 0.002,
                             gas_estimate_usd: 0.0,
+                            gas_details: None,
                         },
                     },
                     output: OutputDetails {
@@ -138,6 +139,7 @@ mod quotes_integration_tests {
                         breakdown: CostBreakdown {
                             bridge_fee: 0.0015,
                             gas_estimate_usd: 0.0,
+                            gas_details: None,
                         },
                     },
                     output: OutputDetails {

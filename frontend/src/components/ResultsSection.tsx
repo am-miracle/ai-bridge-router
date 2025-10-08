@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import toast from "react-hot-toast";
 import { FadeIn } from "@/components/animations/FadeIn";
 import { StaggerContainer } from "@/components/animations/StaggerContainer";
 import { StaggerItem } from "@/components/animations/StaggerItem";
@@ -17,6 +19,17 @@ export function ResultsSection({
   sourceChain,
   destinationChain,
 }: ResultsSectionProps) {
+  useEffect(() => {
+    // Dismiss the loading toast
+    toast.dismiss("fetching-quotes");
+
+    if (routes.length > 0) {
+      toast.success(`Found ${routes.length} route${routes.length > 1 ? "s" : ""} available!`);
+    } else {
+      toast.error("No routes found for this combination");
+    }
+  }, [routes]);
+
   return (
     <FadeIn delay={0.2}>
       <section
