@@ -37,8 +37,6 @@ async fn test_bridge_quote_serialization() {
         bridge: "TestBridge".to_string(),
         fee: 0.001,
         est_time: 300,
-        liquidity: "1M USDC".to_string(),
-        score: None,
         metadata: Some(json!({
             "test": "data",
             "fee_breakdown": {
@@ -59,7 +57,6 @@ async fn test_bridge_quote_serialization() {
     assert_eq!(deserialized.bridge, "TestBridge");
     assert_eq!(deserialized.fee, 0.001);
     assert_eq!(deserialized.est_time, 300);
-    assert_eq!(deserialized.liquidity, "1M USDC");
     assert!(deserialized.metadata.is_some());
 }
 

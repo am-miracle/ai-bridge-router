@@ -43,33 +43,32 @@ fn generate_cache_key(params: &QuoteParams) -> String {
 /// Extract client IP from request headers and connection info
 fn extract_client_ip(request: &Request, connect_info: Option<&SocketAddr>) -> String {
     // Try X-Forwarded-For header (proxy/load balancer)
-    if let Some(forwarded_for) = request.headers().get("x-forwarded-for") {
-        if let Ok(forwarded_str) = forwarded_for.to_str() {
-            if let Some(first_ip) = forwarded_str.split(',').next() {
-                let ip = first_ip.trim();
-                if !ip.is_empty() && ip != "unknown" {
-                    return ip.to_string();
-                }
-            }
+    if let Some(forwarded_for) = request.headers().get("x-forwarded-for")
+        && let Ok(forwarded_str) = forwarded_for.to_str()
+        && let Some(first_ip) = forwarded_str.split(',').next()
+    {
+        let ip = first_ip.trim();
+        if !ip.is_empty() && ip != "unknown" {
+            return ip.to_string();
         }
     }
 
     // Try X-Real-IP header
-    if let Some(real_ip) = request.headers().get("x-real-ip") {
-        if let Ok(real_ip_str) = real_ip.to_str() {
-            if !real_ip_str.is_empty() && real_ip_str != "unknown" {
-                return real_ip_str.to_string();
-            }
-        }
+    if let Some(real_ip) = request.headers().get("x-real-ip")
+        && let Ok(real_ip_str) = real_ip.to_str()
+        && !real_ip_str.is_empty()
+        && real_ip_str != "unknown"
+    {
+        return real_ip_str.to_string();
     }
 
     // Try CF-Connecting-IP (Cloudflare)
-    if let Some(cf_ip) = request.headers().get("cf-connecting-ip") {
-        if let Ok(cf_ip_str) = cf_ip.to_str() {
-            if !cf_ip_str.is_empty() && cf_ip_str != "unknown" {
-                return cf_ip_str.to_string();
-            }
-        }
+    if let Some(cf_ip) = request.headers().get("cf-connecting-ip")
+        && let Ok(cf_ip_str) = cf_ip.to_str()
+        && !cf_ip_str.is_empty()
+        && cf_ip_str != "unknown"
+    {
+        return cf_ip_str.to_string();
     }
 
     // Fallback to connection info or localhost
@@ -109,7 +108,7 @@ fn calculate_security_score(has_audit: bool, has_exploit: bool) -> f64 {
         score -= 0.4;
     }
 
-    score.max(0.0).min(1.0)
+    score.clamp(0.0, 1.0)
 }
 
 /// Convert BridgeQuote to detailed QuoteResponse
@@ -387,22 +386,19 @@ pub async fn get_quotes(
     // If no quotes, try stale cache
     if quotes.is_empty() {
         let stale_cache_key = format!("{}_stale", cache_key);
-        match app_state
+        if let Ok(Some(stale_response)) = app_state
             .cache()
             .get_cache::<AggregatedQuotesResponse>(&stale_cache_key)
             .await
         {
-            Ok(Some(stale_response)) => {
-                warn!("Returning stale cache for key: {}", cache_key);
-                let mut headers = HeaderMap::new();
-                headers.insert(
-                    header::CACHE_CONTROL,
-                    "public, max-age=0, must-revalidate".parse().unwrap(),
-                );
-                headers.insert("X-Cache", "STALE".parse().unwrap());
-                return (StatusCode::OK, headers, Json(stale_response)).into_response();
-            }
-            _ => {}
+            warn!("Returning stale cache for key: {}", cache_key);
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                header::CACHE_CONTROL,
+                "public, max-age=0, must-revalidate".parse().unwrap(),
+            );
+            headers.insert("X-Cache", "STALE".parse().unwrap());
+            return (StatusCode::OK, headers, Json(stale_response)).into_response();
         }
 
         // No cache available

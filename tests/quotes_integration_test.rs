@@ -91,24 +91,86 @@ mod quotes_integration_tests {
 
     #[test]
     fn test_response_structure() {
+        use bridge_router::models::quote::{
+            CostBreakdown, CostDetails, OutputDetails, SecurityDetails, TimingDetails,
+        };
+
         // Test the expected response structure
         let sample_response = AggregatedQuotesResponse {
             routes: vec![
                 QuoteResponse {
                     bridge: "Connext".to_string(),
-                    cost: 0.002,
-                    est_time: 120,
-                    score: 0.0,
-                    liquidity: "1,000,000 USDC".to_string(),
+                    score: 0.75,
+                    cost: CostDetails {
+                        total_fee: 0.002,
+                        total_fee_usd: 0.002,
+                        breakdown: CostBreakdown {
+                            bridge_fee: 0.002,
+                            gas_estimate_usd: 0.0,
+                        },
+                    },
+                    output: OutputDetails {
+                        expected: 99.998,
+                        minimum: 99.498,
+                        input: 100.0,
+                    },
+                    timing: TimingDetails {
+                        seconds: 120,
+                        display: "~2 min".to_string(),
+                        category: "fast".to_string(),
+                    },
+                    security: SecurityDetails {
+                        score: 0.8,
+                        level: "high".to_string(),
+                        has_audit: true,
+                        has_exploit: false,
+                    },
+                    available: true,
+                    status: "operational".to_string(),
+                    warnings: Vec::new(),
                 },
                 QuoteResponse {
                     bridge: "Hop".to_string(),
-                    cost: 0.0015,
-                    est_time: 180,
-                    score: 0.0,
-                    liquidity: "500,000 USDC".to_string(),
+                    score: 0.72,
+                    cost: CostDetails {
+                        total_fee: 0.0015,
+                        total_fee_usd: 0.0015,
+                        breakdown: CostBreakdown {
+                            bridge_fee: 0.0015,
+                            gas_estimate_usd: 0.0,
+                        },
+                    },
+                    output: OutputDetails {
+                        expected: 99.9985,
+                        minimum: 99.49935,
+                        input: 100.0,
+                    },
+                    timing: TimingDetails {
+                        seconds: 180,
+                        display: "~3 min".to_string(),
+                        category: "medium".to_string(),
+                    },
+                    security: SecurityDetails {
+                        score: 0.8,
+                        level: "high".to_string(),
+                        has_audit: true,
+                        has_exploit: false,
+                    },
+                    available: true,
+                    status: "operational".to_string(),
+                    warnings: Vec::new(),
                 },
             ],
+            metadata: bridge_router::models::quote::ResponseMetadata {
+                total_routes: 2,
+                available_routes: 2,
+                request: bridge_router::models::quote::RequestMetadata {
+                    from: "ethereum".to_string(),
+                    to: "polygon".to_string(),
+                    token: "USDC".to_string(),
+                    amount: 100.0,
+                },
+            },
             errors: Vec::new(),
         };
 
