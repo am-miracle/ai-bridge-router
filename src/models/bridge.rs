@@ -13,11 +13,6 @@ pub struct BridgeQuote {
     pub fee: f64,
     /// Estimated time in seconds
     pub est_time: u64,
-    /// Human-readable liquidity string (e.g., "1,000,000 USDC")
-    pub liquidity: String,
-    /// Heuristic score from 0.0 to 1.0 (higher is better)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<f64>,
     /// Optional additional metadata
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,

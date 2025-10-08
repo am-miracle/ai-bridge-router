@@ -10,16 +10,64 @@ export interface QuoteParams {
   slippage?: number;
 }
 
+export interface CostBreakdown {
+  bridge_fee: number;
+  gas_estimate_usd: number;
+}
+
+export interface CostDetails {
+  total_fee: number;
+  total_fee_usd: number;
+  breakdown: CostBreakdown;
+}
+
+export interface OutputDetails {
+  expected: number;
+  minimum: number;
+  input: number;
+}
+
+export interface TimingDetails {
+  seconds: number;
+  display: string;
+  category: "fast" | "medium" | "slow";
+}
+
+export interface SecurityDetails {
+  score: number;
+  level: "high" | "medium" | "low";
+  has_audit: boolean;
+  has_exploit: boolean;
+}
+
 export interface QuoteResponse {
   bridge: string;
-  cost: number;
-  est_time: number;
-  liquidity: string;
   score: number;
+  cost: CostDetails;
+  output: OutputDetails;
+  timing: TimingDetails;
+  security: SecurityDetails;
+  available: boolean;
+  status: "operational" | "degraded" | "unavailable";
+  warnings: string[];
+}
+
+export interface RequestMetadata {
+  from: string;
+  to: string;
+  token: string;
+  amount: number;
+}
+
+export interface ResponseMetadata {
+  total_routes: number;
+  available_routes: number;
+  request: RequestMetadata;
 }
 
 export interface AggregatedQuotesResponse {
   routes: QuoteResponse[];
+  metadata: ResponseMetadata;
   errors?: Array<{ bridge: string; error: string }>;
 }
 

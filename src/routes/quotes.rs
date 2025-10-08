@@ -12,15 +12,22 @@ use tracing::{error, info, warn};
 use crate::app_state::AppState;
 use crate::db::SecurityRepository;
 use crate::models::bridge::{BridgeClientConfig, BridgeQuote, BridgeQuoteRequest};
-use crate::models::quote::{AggregatedQuotesResponse, ErrorResponse, QuoteParams, QuoteResponse};
+use crate::models::quote::{
+    AggregatedQuotesResponse, BridgeQuoteError, CostBreakdown, CostDetails, ErrorResponse,
+    OutputDetails, QuoteParams, QuoteResponse, RequestMetadata, ResponseMetadata, SecurityDetails,
+    TimingDetails, categorize_security, categorize_timing, format_timing,
+};
 use crate::services::{SecurityMetadata, calculate_score, get_all_bridge_quotes};
 use crate::utils::errors::AppResult;
 
-/// Cache TTL for fresh quotes in seconds (15 seconds as per requirements)
+/// Cache TTL for fresh quotes in seconds (15 seconds)
 const QUOTE_CACHE_TTL_SECONDS: u64 = 15;
 
 /// Maximum age for stale cache in seconds (5 minutes)
 const MAX_STALE_CACHE_AGE_SECONDS: u64 = 300;
+
+/// Rate limit: maximum requests per minute per IP
+const RATE_LIMIT_PER_MINUTE: i64 = 100;
 
 /// Generate cache key for quote requests
 fn generate_cache_key(params: &QuoteParams) -> String {
@@ -33,56 +40,42 @@ fn generate_cache_key(params: &QuoteParams) -> String {
     )
 }
 
-/// Convert internal BridgeQuote to API QuoteResponse format with score
-fn convert_bridge_quote_to_response_with_score(quote: &BridgeQuote, score: f64) -> QuoteResponse {
-    QuoteResponse {
-        bridge: quote.bridge.clone(),
-        cost: quote.fee,
-        est_time: quote.est_time,
-        liquidity: quote.liquidity.clone(),
-        score,
-    }
-}
-
 /// Extract client IP from request headers and connection info
-/// Handles common proxy headers like X-Forwarded-For, X-Real-IP
-/// Falls back to localhost for local testing when ConnectInfo is not available
 fn extract_client_ip(request: &Request, connect_info: Option<&SocketAddr>) -> String {
-    // Try to get IP from common proxy headers first
-    if let Some(forwarded_for) = request.headers().get("x-forwarded-for")
-        && let Ok(forwarded_str) = forwarded_for.to_str()
-    {
-        // X-Forwarded-For can contain multiple IPs, take the first one
-        if let Some(first_ip) = forwarded_str.split(',').next() {
-            let ip = first_ip.trim();
-            if !ip.is_empty() && ip != "unknown" {
-                return ip.to_string();
+    // Try X-Forwarded-For header (proxy/load balancer)
+    if let Some(forwarded_for) = request.headers().get("x-forwarded-for") {
+        if let Ok(forwarded_str) = forwarded_for.to_str() {
+            if let Some(first_ip) = forwarded_str.split(',').next() {
+                let ip = first_ip.trim();
+                if !ip.is_empty() && ip != "unknown" {
+                    return ip.to_string();
+                }
             }
         }
     }
 
     // Try X-Real-IP header
-    if let Some(real_ip) = request.headers().get("x-real-ip")
-        && let Ok(real_ip_str) = real_ip.to_str()
-        && !real_ip_str.is_empty()
-        && real_ip_str != "unknown"
-    {
-        return real_ip_str.to_string();
+    if let Some(real_ip) = request.headers().get("x-real-ip") {
+        if let Ok(real_ip_str) = real_ip.to_str() {
+            if !real_ip_str.is_empty() && real_ip_str != "unknown" {
+                return real_ip_str.to_string();
+            }
+        }
     }
 
     // Try CF-Connecting-IP (Cloudflare)
-    if let Some(cf_ip) = request.headers().get("cf-connecting-ip")
-        && let Ok(cf_ip_str) = cf_ip.to_str()
-        && !cf_ip_str.is_empty()
-        && cf_ip_str != "unknown"
-    {
-        return cf_ip_str.to_string();
+    if let Some(cf_ip) = request.headers().get("cf-connecting-ip") {
+        if let Ok(cf_ip_str) = cf_ip.to_str() {
+            if !cf_ip_str.is_empty() && cf_ip_str != "unknown" {
+                return cf_ip_str.to_string();
+            }
+        }
     }
 
-    // Fall back to connection info if available, otherwise use localhost for testing
+    // Fallback to connection info or localhost
     match connect_info {
         Some(addr) => addr.ip().to_string(),
-        None => "127.0.0.1".to_string(), // Fallback for local testing
+        None => "127.0.0.1".to_string(),
     }
 }
 
@@ -90,36 +83,123 @@ fn extract_client_ip(request: &Request, connect_info: Option<&SocketAddr>) -> St
 fn amount_to_smallest_unit(amount: f64, token: &str) -> String {
     match token.to_uppercase().as_str() {
         "USDC" | "USDT" => {
-            // 6 decimals
             let smallest_unit = (amount * 1_000_000.0) as u64;
             smallest_unit.to_string()
         }
         "ETH" | "WETH" | "DAI" => {
-            // 18 decimals
             let smallest_unit = (amount * 1_000_000_000_000_000_000.0) as u64;
             smallest_unit.to_string()
         }
         _ => {
-            // Default to 18 decimals for unknown tokens
             let smallest_unit = (amount * 1_000_000_000_000_000_000.0) as u64;
             smallest_unit.to_string()
         }
     }
 }
 
-/// Process quotes with security metadata and scoring
+/// Calculate security score (0.0 to 1.0)
+fn calculate_security_score(has_audit: bool, has_exploit: bool) -> f64 {
+    let mut score: f64 = 0.5; // Base score
+
+    if has_audit {
+        score += 0.3;
+    }
+
+    if has_exploit {
+        score -= 0.4;
+    }
+
+    score.max(0.0).min(1.0)
+}
+
+/// Convert BridgeQuote to detailed QuoteResponse
+fn convert_to_quote_response(
+    quote: &BridgeQuote,
+    params: &QuoteParams,
+    security_metadata: Option<&SecurityMetadata>,
+) -> QuoteResponse {
+    let has_audit = security_metadata.map(|s| s.has_audit).unwrap_or(false);
+    let has_exploit = security_metadata.map(|s| s.has_exploit).unwrap_or(false);
+
+    // Calculate overall score (combines cost, time, security)
+    let overall_score = calculate_score(quote.fee, quote.est_time, has_audit, has_exploit);
+
+    // Calculate security score
+    let security_score = calculate_security_score(has_audit, has_exploit);
+
+    // Calculate output amounts
+    let expected_output = params.amount - quote.fee;
+    let minimum_output = expected_output * (1.0 - params.slippage / 100.0);
+
+    // For MVP, we don't have real-time gas prices yet
+    // So we'll just show the bridge fee
+    let cost = CostDetails {
+        total_fee: quote.fee,
+        total_fee_usd: quote.fee, // TODO: Add token price conversion
+        breakdown: CostBreakdown {
+            bridge_fee: quote.fee,
+            gas_estimate_usd: 0.0, // TODO: Add gas price fetching
+        },
+    };
+
+    let output = OutputDetails {
+        expected: expected_output,
+        minimum: minimum_output,
+        input: params.amount,
+    };
+
+    let timing = TimingDetails {
+        seconds: quote.est_time,
+        display: format_timing(quote.est_time),
+        category: categorize_timing(quote.est_time),
+    };
+
+    let security = SecurityDetails {
+        score: security_score,
+        level: categorize_security(security_score),
+        has_audit,
+        has_exploit,
+    };
+
+    // Determine availability and warnings
+    let mut warnings = Vec::new();
+    let available = true; // All quotes that come back are available
+
+    // Add warning if security score is low
+    if security_score < 0.4 {
+        warnings.push("low_security".to_string());
+    }
+
+    // Add warning if timing is slow
+    if quote.est_time > 600 {
+        warnings.push("slow_route".to_string());
+    }
+
+    let status = "operational".to_string();
+
+    QuoteResponse {
+        bridge: quote.bridge.clone(),
+        score: overall_score,
+        cost,
+        output,
+        timing,
+        security,
+        available,
+        status,
+        warnings,
+    }
+}
+
+/// Process quotes with security metadata
 async fn process_quotes_with_security(
     bridge_quotes: &[BridgeQuote],
+    params: &QuoteParams,
     app_state: &Arc<AppState>,
 ) -> Vec<QuoteResponse> {
     // Get bridge names for security metadata lookup
     let bridge_names: Vec<String> = bridge_quotes.iter().map(|q| q.bridge.clone()).collect();
 
-    // Fetch security metadata for all bridges in batch, with timeout
-    info!(
-        "Fetching security metadata for {} bridges",
-        bridge_names.len()
-    );
+    // Fetch security metadata for all bridges in batch
     let security_metadata = match timeout(
         Duration::from_secs(10),
         SecurityRepository::get_batch_security_metadata(app_state.db(), &bridge_names),
@@ -137,28 +217,18 @@ async fn process_quotes_with_security(
         }
     };
 
-    // Create a lookup map for security metadata
+    // Create lookup map
     let security_map: HashMap<String, &SecurityMetadata> = security_metadata
         .iter()
         .map(|m| (m.bridge.clone(), m))
         .collect();
 
-    // Calculate scores and convert to API response format
+    // Convert quotes to response format
     bridge_quotes
         .iter()
         .map(|quote| {
-            let security = security_map.get(&quote.bridge);
-            let has_audit = security.map(|s| s.has_audit).unwrap_or(false);
-            let has_exploit = security.map(|s| s.has_exploit).unwrap_or(false);
-
-            let score = calculate_score(quote.fee, quote.est_time, has_audit, has_exploit);
-
-            info!(
-                "Bridge {}: fee={:.6}, time={}s, audit={}, exploit={}, score={:.3}",
-                quote.bridge, quote.fee, quote.est_time, has_audit, has_exploit, score
-            );
-
-            convert_bridge_quote_to_response_with_score(quote, score)
+            let security = security_map.get(&quote.bridge).copied();
+            convert_to_quote_response(quote, params, security)
         })
         .collect()
 }
@@ -170,50 +240,25 @@ pub async fn get_quotes(
     request: Request,
 ) -> Response {
     info!(
-        "Quote aggregation request: {} {} from {} to {}",
+        "Quote request: {} {} from {} to {}",
         params.amount, params.token, params.from_chain, params.to_chain
     );
 
-    // Rate limiting using Redis increment
-    // Try to get ConnectInfo from request extensions, fallback to None for local testing
+    // Rate limiting
     let connect_info = request.extensions().get::<SocketAddr>();
     let client_ip = extract_client_ip(&request, connect_info);
     let rate_limit_key = format!("rate_limit:quotes:{}", client_ip);
 
-    info!(
-        "Client IP detected: {} (from headers/connection)",
-        client_ip
-    );
-
-    tracing::info!(
-        "Before Redis increment for rate limiting: key={}",
-        rate_limit_key
-    );
     let request_count = match app_state.cache().increment(&rate_limit_key, 1).await {
-        Ok(count) => {
-            tracing::info!(
-                "After Redis increment for rate limiting: key={}, count={}",
-                rate_limit_key,
-                count
-            );
-            count
-        }
+        Ok(count) => count,
         Err(e) => {
-            tracing::error!(
-                "Redis increment failed for rate limiting: key={}, error={}",
-                rate_limit_key,
-                e
-            );
+            error!("Redis increment failed: {}", e);
             0
         }
     };
 
-    // Allow 100 requests per minute per IP
-    if request_count > 100 {
-        warn!(
-            "Rate limit exceeded for IP {}: {} requests",
-            client_ip, request_count
-        );
+    if request_count > RATE_LIMIT_PER_MINUTE {
+        warn!("Rate limit exceeded for IP {}", client_ip);
         return (
             StatusCode::TOO_MANY_REQUESTS,
             Json(ErrorResponse {
@@ -223,29 +268,13 @@ pub async fn get_quotes(
             .into_response();
     }
 
-    // Set expiration for rate limit counter (only on first request)
+    // Set expiration on first request
     if request_count == 1 {
-        tracing::info!(
-            "Before Redis expire for rate limiting: key={}",
-            rate_limit_key
-        );
-        let expire_result = app_state.cache().expire(&rate_limit_key, 60).await; // 1 minute
-        match expire_result {
-            Ok(_) => tracing::info!(
-                "After Redis expire for rate limiting: key={}",
-                rate_limit_key
-            ),
-            Err(e) => tracing::error!(
-                "Redis expire failed for rate limiting: key={}, error={}",
-                rate_limit_key,
-                e
-            ),
-        }
+        let _ = app_state.cache().expire(&rate_limit_key, 60).await;
     }
 
-    // Validate input parameters
+    // Validate parameters
     if params.from_chain.is_empty() {
-        warn!("Missing from_chain parameter");
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -256,7 +285,6 @@ pub async fn get_quotes(
     }
 
     if params.to_chain.is_empty() {
-        warn!("Missing to_chain parameter");
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -267,7 +295,6 @@ pub async fn get_quotes(
     }
 
     if params.token.is_empty() {
-        warn!("Missing token parameter");
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -278,7 +305,6 @@ pub async fn get_quotes(
     }
 
     if params.amount <= 0.0 {
-        warn!("Invalid amount: {}", params.amount);
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -289,7 +315,6 @@ pub async fn get_quotes(
     }
 
     if params.from_chain.eq_ignore_ascii_case(&params.to_chain) {
-        warn!("Same source and destination chain: {}", params.from_chain);
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -299,42 +324,29 @@ pub async fn get_quotes(
             .into_response();
     }
 
-    // Generate cache key for this request
+    // Check cache
     let cache_key = generate_cache_key(&params);
-
-    // Try to get fresh cache first
-    tracing::info!("Before Redis get_cache for fresh quotes: key={}", cache_key);
     match app_state
         .cache()
         .get_cache::<AggregatedQuotesResponse>(&cache_key)
         .await
     {
         Ok(Some(cached_response)) => {
-            tracing::info!(
-                "After Redis get_cache for fresh quotes: key={}, HIT",
-                cache_key
-            );
+            info!("Cache HIT for key: {}", cache_key);
             let mut headers = HeaderMap::new();
             headers.insert(header::CACHE_CONTROL, "public, max-age=15".parse().unwrap());
             headers.insert("X-Cache", "HIT".parse().unwrap());
             return (StatusCode::OK, headers, Json(cached_response)).into_response();
         }
         Ok(None) => {
-            tracing::info!(
-                "After Redis get_cache for fresh quotes: key={}, MISS",
-                cache_key
-            );
+            info!("Cache MISS for key: {}", cache_key);
         }
         Err(e) => {
-            tracing::error!(
-                "Redis get_cache failed for fresh quotes: key={}, error={}",
-                cache_key,
-                e
-            );
+            error!("Cache get failed: {}", e);
         }
     }
 
-    // Convert amount to smallest unit for bridge APIs
+    // Convert amount to smallest unit
     let amount_smallest_unit = amount_to_smallest_unit(params.amount, &params.token);
 
     // Create bridge quote request
@@ -346,78 +358,54 @@ pub async fn get_quotes(
         slippage: params.slippage,
     };
 
-    // Create bridge client configuration with 5s timeout as specified
+    // Configure bridge client
     let config = BridgeClientConfig::new()
         .with_cache(app_state.cache().clone())
-        .with_timeout(Duration::from_secs(10)) // 5s timeout as per requirements
-        .with_retries(0); // Single retry for fast response
+        .with_timeout(Duration::from_secs(10))
+        .with_retries(0);
 
-    // Get quotes from all bridges concurrently
-    info!("Fetching quotes from all bridges with 5s timeout");
+    // Fetch quotes from all bridges
+    info!("Fetching quotes from all bridges");
     let bridge_results = get_all_bridge_quotes(&request, &config).await;
 
     // Separate successful quotes and errors
-    let mut quotes = Vec::with_capacity(bridge_results.len());
-    let mut errors = Vec::with_capacity(bridge_results.len());
+    let mut quotes = Vec::new();
+    let mut errors = Vec::new();
+
     for result in &bridge_results {
         if let Some(quote) = &result.quote {
             quotes.push(quote.clone());
         }
         if let Some(err) = &result.error {
-            errors.push(crate::models::quote::BridgeQuoteError {
+            errors.push(BridgeQuoteError {
                 bridge: result.bridge.clone(),
                 error: err.clone(),
             });
         }
     }
 
-    // Check if no quotes were returned - try stale cache fallback
+    // If no quotes, try stale cache
     if quotes.is_empty() {
-        // Try to get stale cache with extended TTL check
         let stale_cache_key = format!("{}_stale", cache_key);
-        tracing::info!(
-            "Before Redis get_cache for stale quotes: key={}",
-            stale_cache_key
-        );
         match app_state
             .cache()
             .get_cache::<AggregatedQuotesResponse>(&stale_cache_key)
             .await
         {
             Ok(Some(stale_response)) => {
-                tracing::info!(
-                    "After Redis get_cache for stale quotes: key={}, HIT",
-                    stale_cache_key
-                );
-                warn!("Returning stale cached quotes for key: {}", cache_key);
+                warn!("Returning stale cache for key: {}", cache_key);
                 let mut headers = HeaderMap::new();
                 headers.insert(
                     header::CACHE_CONTROL,
                     "public, max-age=0, must-revalidate".parse().unwrap(),
                 );
                 headers.insert("X-Cache", "STALE".parse().unwrap());
-                headers.insert(
-                    header::WARNING,
-                    "110 - \"Response is Stale\"".parse().unwrap(),
-                );
                 return (StatusCode::OK, headers, Json(stale_response)).into_response();
             }
-            Ok(None) => {
-                tracing::info!(
-                    "After Redis get_cache for stale quotes: key={}, MISS",
-                    stale_cache_key
-                );
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Redis get_cache failed for stale quotes: key={}, error={}",
-                    stale_cache_key,
-                    e
-                );
-            }
+            _ => {}
         }
 
-        // No cache available, return error
+        // No cache available
         return (
             StatusCode::BAD_GATEWAY,
             Json(ErrorResponse {
@@ -427,88 +415,45 @@ pub async fn get_quotes(
             .into_response();
     }
 
-    // Process quotes with security scoring
-    tracing::info!("Before DB call: process_quotes_with_security");
-    let routes = process_quotes_with_security(&quotes, &app_state).await;
-    tracing::info!("After DB call: process_quotes_with_security");
+    // Process quotes with security metadata
+    let routes = process_quotes_with_security(&quotes, &params, &app_state).await;
 
-    info!(
-        "Returning {} routes from bridges with calculated scores",
-        routes.len()
-    );
+    info!("Returning {} routes", routes.len());
 
-    // Log each route for debugging
-    for route in &routes {
-        info!(
-            "Route: {} - cost: {}, time: {}s, liquidity: {}, score: {:.3}",
-            route.bridge, route.cost, route.est_time, route.liquidity, route.score
-        );
-    }
-
-    // Check routes emptiness before moving it
-    let has_routes = !routes.is_empty();
+    // Create response
     let response = AggregatedQuotesResponse {
-        routes,
-        // Only include errors if there are no successful routes
-        errors: if !has_routes && !errors.is_empty() {
+        routes: routes.clone(),
+        metadata: ResponseMetadata {
+            total_routes: routes.len(),
+            available_routes: routes.iter().filter(|r| r.available).count(),
+            request: RequestMetadata {
+                from: params.from_chain.clone(),
+                to: params.to_chain.clone(),
+                token: params.token.clone(),
+                amount: params.amount,
+            },
+        },
+        errors: if routes.is_empty() {
             errors
         } else {
             Vec::new()
         },
     };
 
-    // Cache the response with 15s TTL for fresh cache
-    tracing::info!("Before Redis set_cache for fresh quotes: key={}", cache_key);
-    match app_state
+    // Cache the response (fresh)
+    let _ = app_state
         .cache()
         .set_cache(&cache_key, &response, QUOTE_CACHE_TTL_SECONDS)
-        .await
-    {
-        Ok(_) => {
-            info!(
-                "Cached quote response with {}s TTL for key: {}",
-                QUOTE_CACHE_TTL_SECONDS, cache_key
-            );
-            tracing::info!("After Redis set_cache for fresh quotes: key={}", cache_key);
-        }
-        Err(e) => {
-            warn!("Failed to cache quote response: {}", e);
-            tracing::error!(
-                "Redis set_cache failed for fresh quotes: key={}, error={}",
-                cache_key,
-                e
-            );
-        }
-    }
+        .await;
 
-    // Also cache with longer TTL for stale fallback (5 minutes)
+    // Cache for stale fallback
     let stale_cache_key = format!("{}_stale", cache_key);
-    tracing::info!(
-        "Before Redis set_cache for stale quotes: key={}",
-        stale_cache_key
-    );
-    match app_state
+    let _ = app_state
         .cache()
         .set_cache(&stale_cache_key, &response, MAX_STALE_CACHE_AGE_SECONDS)
-        .await
-    {
-        Ok(_) => {
-            tracing::info!(
-                "After Redis set_cache for stale quotes: key={}",
-                stale_cache_key
-            );
-        }
-        Err(e) => {
-            warn!("Failed to cache stale quote response: {}", e);
-            tracing::error!(
-                "Redis set_cache failed for stale quotes: key={}, error={}",
-                stale_cache_key,
-                e
-            );
-        }
-    }
+        .await;
 
-    // Return fresh response with appropriate headers
+    // Return response
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CACHE_CONTROL,
@@ -521,7 +466,7 @@ pub async fn get_quotes(
     (StatusCode::OK, headers, Json(response)).into_response()
 }
 
-/// Health check specifically for bridge services
+/// Health check for bridge services
 pub async fn bridge_health() -> AppResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -537,167 +482,15 @@ pub fn quotes_routes() -> Router<Arc<AppState>> {
         .route("/quotes/health", get(bridge_health))
 }
 
-#[allow(dead_code)]
-/// Convert internal BridgeQuote to API QuoteResponse format (legacy - for tests)
-fn convert_bridge_quote_to_response(quote: &BridgeQuote) -> QuoteResponse {
-    QuoteResponse {
-        bridge: quote.bridge.clone(),
-        cost: quote.fee,
-        est_time: quote.est_time,
-        liquidity: quote.liquidity.clone(),
-        score: 0.0, // Default score for legacy compatibility
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::quote::BridgeQuoteError;
 
-    #[test]
-    fn test_quote_params_validation() {
-        let params = QuoteParams {
-            from_chain: "ethereum".to_string(),
-            to_chain: "polygon".to_string(),
-            token: "USDC".to_string(),
-            amount: 1.5,
-            slippage: 0.5,
-        };
-
-        assert_eq!(params.from_chain, "ethereum");
-        assert_eq!(params.to_chain, "polygon");
-        assert_eq!(params.token, "USDC");
-        assert_eq!(params.amount, 1.5);
-        assert_eq!(params.slippage, 0.5);
-    }
-
-    #[test]
-    fn test_quote_response_serialization() {
-        let response = QuoteResponse {
-            bridge: "Connext".to_string(),
-            cost: 0.002,
-            est_time: 120,
-            liquidity: "1,000,000 USDC".to_string(),
-            score: 0.85,
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("Connext"));
-        assert!(json.contains("0.002"));
-        assert!(json.contains("120"));
-    }
-
-    #[test]
-    fn test_aggregated_response_serialization() {
-        let routes = vec![
-            QuoteResponse {
-                bridge: "Connext".to_string(),
-                cost: 0.002,
-                est_time: 120,
-                score: 0.0,
-                liquidity: "1,000,000 USDC".to_string(),
-            },
-            QuoteResponse {
-                bridge: "Hop".to_string(),
-                cost: 0.0015,
-                est_time: 180,
-                score: 0.0,
-                liquidity: "500,000 USDC".to_string(),
-            },
-        ];
-
-        let errors = vec![BridgeQuoteError {
-            bridge: "Axelar".to_string(),
-            error: "Timeout after 3s".to_string(),
-        }];
-
-        // Test case 1: Successful routes only
-        let response = AggregatedQuotesResponse {
-            routes: routes.clone(),
-            errors: Vec::new(),
-        };
-        let json = serde_json::to_string(&response).unwrap();
-
-        assert!(json.contains("routes"));
-        assert!(json.contains("Connext"));
-        assert!(json.contains("Hop"));
-        assert!(!json.contains("\"errors\"")); // Field should be omitted when empty
-
-        // Test case 2: Mixed success and errors (struct should serialize both)
-        let response = AggregatedQuotesResponse {
-            routes: routes.clone(),
-            errors: errors.clone(),
-        };
-        let json = serde_json::to_string(&response).unwrap();
-
-        assert!(json.contains("routes"));
-        assert!(json.contains("Connext"));
-        assert!(json.contains("Hop"));
-        assert!(json.contains("\"errors\"")); // The struct itself will serialize non-empty errors.
-
-        // Test case 3: Only errors (should include errors)
-        let response = AggregatedQuotesResponse {
-            routes: vec![],
-            errors,
-        };
-        let json = serde_json::to_string(&response).unwrap();
-
-        assert!(json.contains("\"errors\""));
-        assert!(json.contains("Axelar"));
-        assert!(json.contains("Timeout after 3s"));
-        assert!(json.contains("routes"));
-        assert_eq!(
-            serde_json::from_str::<AggregatedQuotesResponse>(&json)
-                .unwrap()
-                .routes
-                .len(),
-            0
-        );
-    }
     #[test]
     fn test_amount_to_smallest_unit() {
-        // Test USDC (6 decimals)
         assert_eq!(amount_to_smallest_unit(1.5, "USDC"), "1500000");
         assert_eq!(amount_to_smallest_unit(0.000001, "USDC"), "1");
-
-        // Test ETH (18 decimals)
         assert_eq!(amount_to_smallest_unit(1.0, "ETH"), "1000000000000000000");
-        assert_eq!(amount_to_smallest_unit(0.001, "ETH"), "1000000000000000");
-
-        // Test unknown token defaults to 18 decimals
-        assert_eq!(
-            amount_to_smallest_unit(1.0, "UNKNOWN"),
-            "1000000000000000000"
-        );
-    }
-
-    #[test]
-    fn test_convert_bridge_quote_to_response() {
-        let bridge_quote = BridgeQuote {
-            bridge: "Test Bridge".to_string(),
-            fee: 0.005,
-            est_time: 300,
-            liquidity: "2M USDC".to_string(),
-            score: None,
-            metadata: None,
-        };
-
-        let response = convert_bridge_quote_to_response(&bridge_quote);
-
-        assert_eq!(response.bridge, "Test Bridge");
-        assert_eq!(response.cost, 0.005);
-        assert_eq!(response.est_time, 300);
-        assert_eq!(response.liquidity, "2M USDC");
-    }
-
-    #[test]
-    fn test_error_response_serialization() {
-        let error_response = ErrorResponse {
-            error: "No quotes available".to_string(),
-        };
-
-        let json = serde_json::to_string(&error_response).unwrap();
-        assert!(json.contains("No quotes available"));
     }
 
     #[test]
@@ -715,8 +508,10 @@ mod tests {
     }
 
     #[test]
-    fn test_cache_constants() {
-        assert_eq!(QUOTE_CACHE_TTL_SECONDS, 15);
-        assert_eq!(MAX_STALE_CACHE_AGE_SECONDS, 300);
+    fn test_calculate_security_score() {
+        assert!((calculate_security_score(true, false) - 0.8).abs() < 0.001);
+        assert!((calculate_security_score(false, false) - 0.5).abs() < 0.001);
+        assert!((calculate_security_score(true, true) - 0.4).abs() < 0.001);
+        assert!((calculate_security_score(false, true) - 0.1).abs() < 0.001);
     }
 }

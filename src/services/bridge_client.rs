@@ -232,27 +232,9 @@ where
     }))
 }
 
-/// Helper function to format large numbers with commas
-pub fn format_liquidity(amount: f64, symbol: &str) -> String {
-    if amount >= 1_000_000.0 {
-        format!("{:.1}M {}", amount / 1_000_000.0, symbol)
-    } else if amount >= 1_000.0 {
-        format!("{:.0}K {}", amount / 1_000.0, symbol)
-    } else {
-        format!("{:.0} {}", amount, symbol)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_format_liquidity() {
-        assert_eq!(format_liquidity(1_500_000.0, "USDC"), "1.5M USDC");
-        assert_eq!(format_liquidity(750_000.0, "USDT"), "750K USDT");
-        assert_eq!(format_liquidity(500.0, "ETH"), "500 ETH");
-    }
 
     #[test]
     fn test_bridge_quote_serialization() {
@@ -260,8 +242,6 @@ mod tests {
             bridge: "Test".to_string(),
             fee: 0.002,
             est_time: 120,
-            liquidity: "1M USDC".to_string(),
-            score: None,
             metadata: None,
         };
 

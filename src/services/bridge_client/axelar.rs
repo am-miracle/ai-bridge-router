@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use super::{format_liquidity, get_cached_quote, retry_request};
+use super::{get_cached_quote, retry_request};
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
 
 /// Axelar API endpoint for GMP and token transfers
@@ -270,8 +270,6 @@ async fn fetch_axelar_quote_once(
                 _ => 900,
             };
 
-            let liquidity = format_liquidity(2_000_000.0, &request.asset); // Axelar typically has good liquidity
-
             let metadata = serde_json::json!({
                 "total_fee": axelar_response.total_fee,
                 "base_fee": axelar_response.base_fee,
@@ -289,14 +287,12 @@ async fn fetch_axelar_quote_once(
                 bridge: "Axelar".to_string(),
                 fee,
                 est_time,
-                liquidity,
-                score: None, // Will be calculated later in the quotes endpoint
                 metadata: Some(metadata),
             };
 
             info!(
-                "Axelar GMP quote retrieved: fee={:.6} {}, time={}s, liquidity={}, ecosystems=multi",
-                quote.fee, request.asset, quote.est_time, quote.liquidity
+                "Axelar GMP quote retrieved: fee={:.6} {}, time={}s, ecosystems=multi",
+                quote.fee, request.asset, quote.est_time
             );
 
             Ok(quote)
@@ -347,9 +343,6 @@ fn create_axelar_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote, B
         _ => 900, // 15 minutes
     };
 
-    // Axelar typically has deep liquidity across ecosystems
-    let liquidity = format_liquidity(5_000_000.0, &request.asset);
-
     let metadata = serde_json::json!({
         "estimated": true,
         "network": "Axelar",
@@ -365,14 +358,12 @@ fn create_axelar_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote, B
         bridge: "Axelar".to_string(),
         fee: estimated_fee,
         est_time,
-        liquidity,
-        score: None, // Will be calculated later in the quotes endpoint
         metadata: Some(metadata),
     };
 
     info!(
-        "Axelar GMP/ITS estimate created: fee={:.6} {}, time={}s, liquidity={}, ecosystems=multi",
-        quote.fee, request.asset, quote.est_time, quote.liquidity
+        "Axelar GMP/ITS estimate created: fee={:.6} {}, time={}s, ecosystems=multi",
+        quote.fee, request.asset, quote.est_time
     );
 
     Ok(quote)
@@ -412,7 +403,6 @@ mod tests {
         assert_eq!(quote.bridge, "Axelar");
         assert!(quote.fee > 0.0);
         assert!(quote.est_time > 0);
-        assert!(!quote.liquidity.is_empty());
     }
 
     #[test]

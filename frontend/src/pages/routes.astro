@@ -19,7 +19,6 @@ const actionError = result?.error && !isInputError(result.error) ? result.error 
 
 <MainLayout content={content}>
   <div class="max-w-6xl mx-auto space-y-8">
-    {/* Hero Section */}
     <HeroSection
       title="Find the Best Bridge Route"
       description="Compare routes across multiple bridges to get the best rates, fastest times, and highest security."
@@ -49,7 +48,6 @@ const actionError = result?.error && !isInputError(result.error) ? result.error 
       )
     }
 
-    {/* Empty State */}
     {!result && <EmptyState client:only="react" />}
   </div>
 </MainLayout>

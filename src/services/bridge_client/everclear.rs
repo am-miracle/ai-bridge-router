@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
-use super::{format_liquidity, get_cached_quote, retry_request};
+use super::{get_cached_quote, retry_request};
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
 
 /// Everclear API endpoint for quotes and liquidity metrics
@@ -229,9 +229,6 @@ async fn fetch_everclear_quote_once(
                 _ => 120, // 2 minutes
             };
 
-            // Use current limit as liquidity indicator
-            let liquidity = format_liquidity(current_limit, &request.asset);
-
             // Create metadata reflecting Everclear's intent-based architecture
             let metadata = serde_json::json!({
                 "fixed_fee": fixed_fee,
@@ -251,14 +248,12 @@ async fn fetch_everclear_quote_once(
                 bridge: "Everclear".to_string(),
                 fee: total_fee,
                 est_time,
-                liquidity,
-                score: None, // Will be calculated later in the quotes endpoint
                 metadata: Some(metadata),
             };
 
             info!(
-                "Everclear intent quote retrieved: fee={:.6} {}, time={}s, liquidity={}, architecture=intent_based",
-                quote.fee, request.asset, quote.est_time, quote.liquidity
+                "Everclear intent quote retrieved: fee={:.6} {}, time={}s, architecture=intent_based",
+                quote.fee, request.asset, quote.est_time
             );
 
             Ok(quote)
@@ -300,9 +295,6 @@ fn create_everclear_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote
         _ => 120, // 2 minutes
     };
 
-    // Everclear typically has good liquidity through intent-based clearing
-    let liquidity = format_liquidity(3_000_000.0, &request.asset);
-
     let metadata = serde_json::json!({
         "estimated": true,
         "architecture": "intent_based",
@@ -319,14 +311,12 @@ fn create_everclear_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote
         bridge: "Everclear".to_string(),
         fee: estimated_fee,
         est_time,
-        liquidity,
-        score: None, // Will be calculated later in the quotes endpoint
         metadata: Some(metadata),
     };
 
     info!(
-        "Everclear intent estimate created: fee={:.6} {}, time={}s, liquidity={}, architecture=intent_based",
-        quote.fee, request.asset, quote.est_time, quote.liquidity
+        "Everclear intent estimate created: fee={:.6} {}, time={}s, architecture=intent_based",
+        quote.fee, request.asset, quote.est_time
     );
 
     Ok(quote)
@@ -398,7 +388,6 @@ mod tests {
         assert_eq!(quote.bridge, "Everclear");
         assert!(quote.fee > 0.0);
         assert!(quote.est_time > 0);
-        assert!(!quote.liquidity.is_empty());
     }
 
     #[test]

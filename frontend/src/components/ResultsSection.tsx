@@ -25,8 +25,8 @@ export function ResultsSection({
         role="region"
         aria-live="polite"
       >
-        <div className="flex items-center justify-between">
-          <h2 id="results-heading" className="text-2xl font-bold">
+        <div className="lg:flex items-center justify-between space-3 mt-3">
+          <h2 id="results-heading" className="text-lg lg:text-2xl font-bold">
             Available Routes ({routes.length})
           </h2>
           <p className="text-sm text-muted-foreground">

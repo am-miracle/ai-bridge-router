@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use tracing::{debug, info, warn};
 
-use super::{format_liquidity, get_cached_quote, retry_request};
+use super::{get_cached_quote, retry_request};
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
 
 /// Hop Protocol API endpoint
@@ -217,9 +217,6 @@ async fn fetch_hop_quote_once(
                 _ => 180, // ~3 minutes for L2 to L2
             };
 
-            // Hop typically has good liquidity
-            let liquidity = format_liquidity(1_000_000.0, &request.asset);
-
             let metadata = serde_json::json!({
                 "amount_in": hop_response.amount_in,
                 "amount_out_min": hop_response.amount_out_min,
@@ -239,14 +236,12 @@ async fn fetch_hop_quote_once(
                 bridge: "Hop".to_string(),
                 fee: total_fee,
                 est_time,
-                liquidity,
-                score: None,
                 metadata: Some(metadata),
             };
 
             info!(
-                "Hop quote retrieved: fee={:.6} {}, bonder_fee={:.6}, time={}s, liquidity={}",
-                quote.fee, request.asset, bonder_fee, quote.est_time, quote.liquidity
+                "Hop quote retrieved: fee={:.6} {}, bonder_fee={:.6}, time={}s",
+                quote.fee, request.asset, bonder_fee, quote.est_time
             );
 
             Ok(quote)
@@ -285,9 +280,6 @@ fn create_hop_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote, Brid
         _ => 180, // ~3 minutes
     };
 
-    // Hop typically has good liquidity across popular routes
-    let liquidity = format_liquidity(2_000_000.0, &request.asset);
-
     let metadata = serde_json::json!({
         "estimated": true,
         "network": "Hop Protocol",
@@ -302,14 +294,12 @@ fn create_hop_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote, Brid
         bridge: "Hop".to_string(),
         fee: estimated_fee,
         est_time,
-        liquidity,
-        score: None,
         metadata: Some(metadata),
     };
 
     info!(
-        "Hop estimate created: fee={:.6} {}, time={}s, liquidity={}",
-        quote.fee, request.asset, quote.est_time, quote.liquidity
+        "Hop estimate created: fee={:.6} {}, time={}s",
+        quote.fee, request.asset, quote.est_time
     );
 
     Ok(quote)
@@ -386,7 +376,6 @@ mod tests {
         assert_eq!(quote.bridge, "Hop");
         assert!(quote.fee > 0.0);
         assert!(quote.est_time > 0);
-        assert!(!quote.liquidity.is_empty());
         assert!(quote.metadata.is_some());
     }
 
