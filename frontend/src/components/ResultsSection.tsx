@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { FadeIn } from "@/components/animations/FadeIn";
 import { StaggerContainer } from "@/components/animations/StaggerContainer";
@@ -19,12 +19,19 @@ export function ResultsSection({
   sourceChain,
   destinationChain,
 }: ResultsSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     // Dismiss the loading toast
     toast.dismiss("fetching-quotes");
 
     if (routes.length > 0) {
       toast.success(`Found ${routes.length} route${routes.length > 1 ? "s" : ""} available!`);
+
+      // Scroll to results section smoothly
+      setTimeout(() => {
+        sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
     } else {
       toast.error("No routes found for this combination");
     }
@@ -33,6 +40,7 @@ export function ResultsSection({
   return (
     <FadeIn delay={0.2}>
       <section
+        ref={sectionRef}
         className="space-y-6"
         aria-labelledby="results-heading"
         role="region"

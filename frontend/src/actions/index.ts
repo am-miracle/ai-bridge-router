@@ -81,6 +81,7 @@ export const server = {
           amount: input.amount,
           tokenAddress: input.tokenAddress,
           tokenSymbol,
+          slippage: input.slippage || "0.5",
           timestamp: new Date().toISOString(),
         };
       } catch (error) {

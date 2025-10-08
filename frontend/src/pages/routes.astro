@@ -4,6 +4,7 @@ import { HeroSection } from "@/components/HeroSection";
 import { RouteQuoteForm } from "@/components/RouteQuoteForm";
 import { ResultsSection } from "@/components/ResultsSection";
 import { EmptyState } from "@/components/EmptyState";
+import { URLUpdater } from "@/components/URLUpdater";
 import { actions, isInputError } from "astro:actions";
 import { supportedChains, commonTokens } from "@/config/chains";
 
@@ -15,9 +16,34 @@ const content = {
 const result = Astro.getActionResult(actions.getRouteQuote);
 const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 const actionError = result?.error && !isInputError(result.error) ? result.error : undefined;
+
+// Get URL parameters for pre-populating form or from result data
+// Priority: result data (from action) > URL params
+const urlParams = Astro.url.searchParams;
+const formDataFromUrl = {
+  sourceChain: result?.data?.sourceChain || urlParams.get("sourceChain") || "",
+  destinationChain: result?.data?.destinationChain || urlParams.get("destinationChain") || "",
+  tokenAddress: result?.data?.tokenAddress || urlParams.get("tokenAddress") || "",
+  amount: result?.data?.amount || urlParams.get("amount") || "",
+  slippage: result?.data?.slippage || urlParams.get("slippage") || "0.5",
+};
+
+// Build URL with query parameters if we have result data
+let urlWithParams = "";
+if (result?.data) {
+  const params = new URLSearchParams({
+    sourceChain: result.data.sourceChain,
+    destinationChain: result.data.destinationChain,
+    tokenAddress: result.data.tokenAddress,
+    amount: result.data.amount,
+    slippage: result.data.slippage || "0.5",
+  });
+  urlWithParams = `?${params.toString()}`;
+}
 ---
 
 <MainLayout content={content}>
+  {urlWithParams && <URLUpdater queryParams={urlWithParams} client:only="react" />}
   <div class="max-w-6xl mx-auto space-y-8">
     <HeroSection
       title="Find the Best Bridge Route"
@@ -32,6 +58,7 @@ const actionError = result?.error && !isInputError(result.error) ? result.error 
       initialErrors={inputErrors}
       actionError={actionError}
       actionUrl={actions.getRouteQuote.toString()}
+      formData={formDataFromUrl}
       client:only="react"
     />
 

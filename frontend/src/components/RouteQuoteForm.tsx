@@ -31,6 +31,13 @@ interface RouteQuoteFormProps {
   initialErrors?: Record<string, string[]>;
   actionError?: { message?: string } | string;
   actionUrl: string;
+  formData?: {
+    sourceChain?: string;
+    destinationChain?: string;
+    tokenAddress?: string;
+    amount?: string;
+    slippage?: string;
+  };
 }
 
 export function RouteQuoteForm({
@@ -39,14 +46,25 @@ export function RouteQuoteForm({
   initialErrors = {},
   actionError,
   actionUrl,
+  formData,
 }: RouteQuoteFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [sourceChain, setSourceChain] = useState(formData?.sourceChain || "");
+  const [destinationChain, setDestinationChain] = useState(formData?.destinationChain || "");
+  const [tokenAddress, setTokenAddress] = useState(formData?.tokenAddress || "");
+  const [amount, setAmount] = useState(formData?.amount || "");
+  const [slippage, setSlippage] = useState(formData?.slippage || "0.5");
 
   useEffect(() => {
-    // Clear query string on mount if present
+    // Clean up action query params while preserving form params
     if (window.location.search.includes("_action=")) {
-      window.history.replaceState({}, "", window.location.pathname);
+      const params = new URLSearchParams(window.location.search);
+      params.delete("_action");
+      const newUrl = params.toString()
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
     }
 
     // Show validation errors as toasts
@@ -71,9 +89,22 @@ export function RouteQuoteForm({
     }
   }, [initialErrors, actionError]);
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     setIsLoading(true);
     toast.loading("Fetching quotes from bridges...", { id: "fetching-quotes" });
+
+    // Add query parameters to URL for shareability
+    const formData = new FormData(e.currentTarget);
+    const params = new URLSearchParams();
+    params.set("sourceChain", formData.get("sourceChain") as string);
+    params.set("destinationChain", formData.get("destinationChain") as string);
+    params.set("tokenAddress", formData.get("tokenAddress") as string);
+    params.set("amount", formData.get("amount") as string);
+    params.set("slippage", (formData.get("slippage") as string) || "0.5");
+
+    // Update URL without triggering navigation
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, "", newUrl);
   };
 
   return (
@@ -90,7 +121,9 @@ export function RouteQuoteForm({
           ref={formRef}
           method="POST"
           action={actionUrl}
-          onSubmit={handleSubmit}
+          onSubmit={(e) => {
+            handleSubmit(e);
+          }}
           className="space-y-6"
         >
           {/* Source Chain */}
@@ -101,7 +134,7 @@ export function RouteQuoteForm({
                 *
               </span>
             </Label>
-            <Select name="sourceChain" required>
+            <Select name="sourceChain" required value={sourceChain} onValueChange={setSourceChain}>
               <SelectTrigger id="sourceChain" aria-required="true" className="w-full">
                 <SelectValue placeholder="Select source chain" />
               </SelectTrigger>
@@ -123,7 +156,12 @@ export function RouteQuoteForm({
                 *
               </span>
             </Label>
-            <Select name="destinationChain" required>
+            <Select
+              name="destinationChain"
+              required
+              value={destinationChain}
+              onValueChange={setDestinationChain}
+            >
               <SelectTrigger id="destinationChain" aria-required="true" className="w-full">
                 <SelectValue placeholder="Select destination chain" />
               </SelectTrigger>
@@ -145,7 +183,12 @@ export function RouteQuoteForm({
                 *
               </span>
             </Label>
-            <Select name="tokenAddress" required>
+            <Select
+              name="tokenAddress"
+              required
+              value={tokenAddress}
+              onValueChange={setTokenAddress}
+            >
               <SelectTrigger id="tokenAddress" aria-required="true" className="w-full">
                 <SelectValue placeholder="Select token" />
               </SelectTrigger>
@@ -177,6 +220,8 @@ export function RouteQuoteForm({
               required
               aria-required="true"
               aria-describedby="amount-hint"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
             />
             <p id="amount-hint" className="text-sm text-muted-foreground">
               Enter the amount you want to bridge
@@ -196,8 +241,9 @@ export function RouteQuoteForm({
               inputMode="decimal"
               pattern="[0-9]*[.]?[0-9]*"
               placeholder="0.5"
-              defaultValue="0.5"
               aria-describedby="slippage-hint"
+              value={slippage}
+              onChange={(e) => setSlippage(e.target.value)}
             />
             <p id="slippage-hint" className="text-sm text-muted-foreground">
               Maximum price slippage you're willing to accept (0-50%)
