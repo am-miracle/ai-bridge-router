@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Zap, Shield, TrendingDown, Clock, CheckCircle2, Sparkles } from "lucide-react";
+import { Zap, Shield, TrendingDown, Clock, CheckCircle2 } from "lucide-react";
 import { BridgeIcon } from "./ui/icons";
 import { motion } from "framer-motion";
 

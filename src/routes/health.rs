@@ -58,7 +58,7 @@ pub async fn status_check(
         db: db_status.to_string(),
         cache: cache_status.to_string(),
         uptime_seconds: uptime,
-        bridges_available: 9, // Everclear, Hop, Axelar, Across, Stargate, Wormhole, LayerZero, Orbiter, cBridge, Synapse (removed: Multichain - defunct)
+        bridges_available: 10, // Everclear, Hop, Axelar, Across, Stargate, Wormhole, LayerZero, Orbiter, cBridge, Synapse
     })
 }
 

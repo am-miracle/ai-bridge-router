@@ -78,7 +78,7 @@ async fn test_get_all_bridge_quotes_empty_response() {
     let quotes = get_all_bridge_quotes(&request, &config).await;
 
     // When all bridges fail, we should get error results for each bridge
-    assert_eq!(quotes.len(), 3); // One result for each bridge
+    assert_eq!(quotes.len(), 10); // One result for each bridge (Everclear, Hop, Axelar, Across, Stargate, Wormhole, LayerZero, Orbiter, cBridge, Synapse)
 
     // Verify each result has an error and no quote
     for quote in quotes {
@@ -243,7 +243,7 @@ mod performance_tests {
         assert!(elapsed < Duration::from_secs(5)); // Give it a bit more time
 
         // Should return empty results due to timeouts (at least some bridges might succeed with very fast responses)
-        assert!(quotes.len() <= 3); // All bridges might timeout, but some might succeed quickly
+        assert!(quotes.len() <= 10); // All bridges might timeout, but some might succeed quickly
     }
 }
 
