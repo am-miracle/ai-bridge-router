@@ -5,6 +5,8 @@ import { Footer } from "@/components/Footer";
 import { ScrollProgress } from "@/components/animations/ScrollProgress";
 import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
 import { Toaster } from "@/components/ui/toaster";
+import Analytics from "@vercel/analytics/astro";
+import SpeedInsights from "@vercel/speed-insights/astro";
 
 const { content } = Astro.props;
 ---
@@ -37,6 +39,8 @@ const { content } = Astro.props;
         <slot />
       </main>
       <Footer client:load />
+      <Analytics />
+      <SpeedInsights />
     </div>
 
     {/* Toast Notifications */}

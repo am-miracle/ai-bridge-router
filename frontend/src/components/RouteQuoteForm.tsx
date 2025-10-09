@@ -38,6 +38,7 @@ interface RouteQuoteFormProps {
     amount?: string;
     slippage?: string;
   };
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export function RouteQuoteForm({
@@ -47,6 +48,7 @@ export function RouteQuoteForm({
   actionError,
   actionUrl,
   formData,
+  onLoadingChange,
 }: RouteQuoteFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,6 +57,7 @@ export function RouteQuoteForm({
   const [tokenAddress, setTokenAddress] = useState(formData?.tokenAddress || "");
   const [amount, setAmount] = useState(formData?.amount || "");
   const [slippage, setSlippage] = useState(formData?.slippage || "0.5");
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Clean up action query params while preserving form params
@@ -82,15 +85,30 @@ export function RouteQuoteForm({
         typeof actionError === "string"
           ? actionError
           : (actionError as any).message || JSON.stringify(actionError) || "An error occurred";
-      toast.error(errorMessage);
+
+      // Provide more helpful error messages
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes("Rate limit exceeded")) {
+        userFriendlyMessage = "Too many requests. Please wait a moment and try again.";
+      } else if (errorMessage.includes("No quotes available")) {
+        userFriendlyMessage = "No routes found. Try a different token or chain combination.";
+      } else if (errorMessage.includes("Failed to fetch")) {
+        userFriendlyMessage = "Network error. Please check your connection and try again.";
+      } else if (errorMessage.includes("timeout")) {
+        userFriendlyMessage = "Request timed out. The bridges may be slow. Try again in a moment.";
+      }
+
+      toast.error(userFriendlyMessage);
       // Clear loading state if there was an error
       setIsLoading(false);
+      onLoadingChange?.(false);
       toast.dismiss("fetching-quotes");
     }
   }, [initialErrors, actionError]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     setIsLoading(true);
+    onLoadingChange?.(true);
     toast.loading("Fetching quotes from bridges...", { id: "fetching-quotes" });
 
     // Add query parameters to URL for shareability
@@ -106,6 +124,34 @@ export function RouteQuoteForm({
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState({}, "", newUrl);
   };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAmount(value);
+
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Debounce: wait 500ms after user stops typing
+    // This prevents too many validations while typing
+    debounceTimerRef.current = setTimeout(() => {
+      // You can add validation or other logic here
+      if (value && parseFloat(value) > 0) {
+        // Valid amount entered
+      }
+    }, 500);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <FadeIn>
@@ -221,7 +267,7 @@ export function RouteQuoteForm({
               aria-required="true"
               aria-describedby="amount-hint"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={handleAmountChange}
             />
             <p id="amount-hint" className="text-sm text-muted-foreground">
               Enter the amount you want to bridge

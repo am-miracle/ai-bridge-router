@@ -1,7 +1,7 @@
 ---
 import MainLayout from "../layouts/main.astro";
 import { HeroSection } from "@/components/HeroSection";
-import { RouteQuoteForm } from "@/components/RouteQuoteForm";
+import { RouteQuoteFormWrapper } from "@/components/RouteQuoteFormWrapper";
 import { ResultsSection } from "@/components/ResultsSection";
 import { EmptyState } from "@/components/EmptyState";
 import { URLUpdater } from "@/components/URLUpdater";
@@ -52,13 +52,14 @@ if (result?.data) {
     />
 
     {/* Quote Form */}
-    <RouteQuoteForm
+    <RouteQuoteFormWrapper
       supportedChains={supportedChains}
       commonTokens={commonTokens}
       initialErrors={inputErrors}
       actionError={actionError}
       actionUrl={actions.getRouteQuote.toString()}
       formData={formDataFromUrl}
+      hasResults={!!result?.data?.routes}
       client:only="react"
     />
 
