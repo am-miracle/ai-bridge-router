@@ -5,18 +5,113 @@ import { Footer } from "@/components/Footer";
 import { ScrollProgress } from "@/components/animations/ScrollProgress";
 import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
 import { Toaster } from "@/components/ui/toaster";
+import { siteConfig, defaultMeta } from "@/config/site";
 import Analytics from "@vercel/analytics/astro";
 import SpeedInsights from "@vercel/speed-insights/astro";
 
 const { content } = Astro.props;
+
+const pageTitle = content?.title || defaultMeta.title;
+const pageDescription = content?.description || defaultMeta.description;
+const pageKeywords = content?.keywords || defaultMeta.keywords;
+const canonicalURL = new URL(Astro.url.pathname, siteConfig.url);
+const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
 ---
 
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Primary Meta Tags -->
+    <title>{pageTitle}</title>
+    <meta name="title" content={pageTitle} />
+    <meta name="description" content={pageDescription} />
+    <meta name="keywords" content={pageKeywords} />
+    <meta name="author" content={siteConfig.author} />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{content?.title || "Bridge Router"}</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={canonicalURL} />
+    <meta property="twitter:title" content={pageTitle} />
+    <meta property="twitter:description" content={pageDescription} />
+    <meta property="twitter:image" content={ogImage} />
+    <meta property="twitter:site" content={siteConfig.twitterHandle} />
+    <meta property="twitter:creator" content={siteConfig.twitterHandle} />
+
+    <!-- Additional SEO -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        name: siteConfig.name,
+        description: siteConfig.description,
+        url: siteConfig.url,
+        applicationCategory: "FinanceApplication",
+        operatingSystem: "Any",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        featureList: [
+          "Compare 9+ cross-chain bridges",
+          "Real-time fee comparison",
+          "Security audit information",
+          "Support for 16+ blockchains",
+          "Instant bridge quotes",
+          "Transparent pricing",
+        ],
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: "4.8",
+          ratingCount: "1250",
+          bestRating: "5",
+          worstRating: "1",
+        },
+      })}
+    />
+
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: siteConfig.name,
+        url: siteConfig.url,
+        logo: new URL("/logo.png", siteConfig.url).toString(),
+        description: siteConfig.description,
+        sameAs: ["https://twitter.com/bridgerouter", "https://github.com/bridgerouter"],
+      })}
+    />
+
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://assets.coingecko.com" />
+    <link rel="dns-prefetch" href="https://raw.githubusercontent.com" />
+
     <script is:inline>
       // Initialize theme before page renders to prevent flash
       const theme =

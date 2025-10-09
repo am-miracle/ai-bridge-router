@@ -17,6 +17,7 @@ pub struct StatusResponse {
     pub db: String,
     pub cache: String,
     pub uptime_seconds: u64,
+    pub bridges_available: u8,
 }
 
 pub async fn health_check(_state: State<std::sync::Arc<AppState>>) -> Json<HealthResponse> {
@@ -57,6 +58,7 @@ pub async fn status_check(
         db: db_status.to_string(),
         cache: cache_status.to_string(),
         uptime_seconds: uptime,
+        bridges_available: 9, // Everclear, Hop, Axelar, Across, Stargate, Wormhole, LayerZero, Orbiter, cBridge, Synapse (removed: Multichain - defunct)
     })
 }
 

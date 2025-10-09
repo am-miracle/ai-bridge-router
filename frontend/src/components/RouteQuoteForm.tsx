@@ -17,12 +17,15 @@ interface Chain {
   id: string;
   name: string;
   symbol: string;
+  chainId?: number;
+  logoUrl?: string;
 }
 
 interface Token {
   address: string;
   symbol: string;
   name: string;
+  logoUrl?: string;
 }
 
 interface RouteQuoteFormProps {
@@ -159,10 +162,6 @@ export function RouteQuoteForm({
         className="p-6 rounded-xl border bg-card shadow-lg max-w-lg mx-auto"
         aria-labelledby="quote-form-heading"
       >
-        {/*<h2 id="quote-form-heading" className="text-2xl font-bold mb-6">
-          Get Route Quotes
-        </h2>*/}
-
         <form
           ref={formRef}
           method="POST"
@@ -187,7 +186,21 @@ export function RouteQuoteForm({
               <SelectContent>
                 {supportedChains.map((chain) => (
                   <SelectItem key={chain.id} value={chain.id}>
-                    {chain.name}
+                    <div className="flex items-center gap-2">
+                      {chain.logoUrl && (
+                        <img
+                          src={chain.logoUrl}
+                          alt={`${chain.name} logo`}
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      )}
+                      <span>{chain.name}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -214,7 +227,21 @@ export function RouteQuoteForm({
               <SelectContent>
                 {supportedChains.map((chain) => (
                   <SelectItem key={chain.id} value={chain.id}>
-                    {chain.name}
+                    <div className="flex items-center gap-2">
+                      {chain.logoUrl && (
+                        <img
+                          src={chain.logoUrl}
+                          alt={`${chain.name} logo`}
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      )}
+                      <span>{chain.name}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -241,7 +268,23 @@ export function RouteQuoteForm({
               <SelectContent>
                 {commonTokens.map((token) => (
                   <SelectItem key={token.address} value={token.address}>
-                    {token.symbol} - {token.name}
+                    <div className="flex items-center gap-2">
+                      {token.logoUrl && (
+                        <img
+                          src={token.logoUrl}
+                          alt={`${token.symbol} logo`}
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      )}
+                      <span>
+                        {token.symbol} - {token.name}
+                      </span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -295,29 +338,6 @@ export function RouteQuoteForm({
               Maximum price slippage you're willing to accept (0-50%)
             </p>
           </div>
-
-          {/* Recipient Address (Optional) */}
-          {/*<div className="space-y-2">
-                    <Label htmlFor="recipientAddress">
-                        Recipient Address
-                        <span className="text-muted-foreground text-xs ml-2">
-                            (Optional)
-                        </span>
-                    </Label>
-                    <Input
-                        type="text"
-                        id="recipientAddress"
-                        name="recipientAddress"
-                        placeholder="0x..."
-                        aria-describedby="recipientAddress-hint"
-                    />
-                    <p
-                        id="recipientAddress-hint"
-                        className="text-sm text-muted-foreground"
-                    >
-                        Leave empty to send to your connected wallet
-                    </p>
-                </div>*/}
 
           {/* Submit Button */}
           <Button type="submit" size="lg" className="w-full" disabled={isLoading}>

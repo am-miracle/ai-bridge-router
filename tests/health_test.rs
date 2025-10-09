@@ -24,6 +24,7 @@ fn test_status_response_serialization() {
         db: "connected".to_string(),
         cache: "connected".to_string(),
         uptime_seconds: 1234,
+        bridges_available: 9,
     };
 
     let json: Value = serde_json::to_value(&response).unwrap();
@@ -32,11 +33,13 @@ fn test_status_response_serialization() {
     assert_eq!(json["db"], "connected");
     assert_eq!(json["cache"], "connected");
     assert_eq!(json["uptime_seconds"], 1234);
+    assert_eq!(json["bridges_available"], 9);
     assert!(json.is_object());
     assert!(json.get("status").is_some());
     assert!(json.get("db").is_some());
     assert!(json.get("cache").is_some());
     assert!(json.get("uptime_seconds").is_some());
+    assert!(json.get("bridges_available").is_some());
 }
 
 /// Test that the health endpoint returns the expected JSON structure
@@ -62,6 +65,7 @@ fn test_status_response_structure() {
         db: "disconnected".to_string(),
         cache: "disconnected".to_string(),
         uptime_seconds: 0,
+        bridges_available: 9,
     };
 
     let json: Value = serde_json::to_value(&response).unwrap();
@@ -72,8 +76,10 @@ fn test_status_response_structure() {
     assert!(json.get("db").is_some());
     assert!(json.get("cache").is_some());
     assert!(json.get("uptime_seconds").is_some());
+    assert!(json.get("bridges_available").is_some());
     assert_eq!(json.get("status").unwrap().as_str().unwrap(), "ok");
     assert_eq!(json.get("db").unwrap().as_str().unwrap(), "disconnected");
     assert_eq!(json.get("cache").unwrap().as_str().unwrap(), "disconnected");
     assert_eq!(json.get("uptime_seconds").unwrap().as_u64().unwrap(), 0);
+    assert_eq!(json.get("bridges_available").unwrap().as_u64().unwrap(), 9);
 }

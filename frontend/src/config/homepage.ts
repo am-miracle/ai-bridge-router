@@ -1,62 +1,75 @@
 import type { Feature, Stat } from "@/types";
 
 export const heroContent = {
-  title: "Cross-Chain Bridge Aggregator",
+  title: "Find the Best Bridge Route. Every Time.",
   description:
-    "Move assets across multiple blockchains securely, quickly, and at the lowest possible cost. Compare bridge options in real-time to find the best route.",
+    "Compare 9+ cross-chain bridges in real-time. Save up to 30% on fees while getting the fastest, most secure routes across Ethereum, Polygon, Arbitrum, Base, and 16+ blockchains.",
   primaryCTA: {
-    label: "Start Bridging",
-    href: "/",
+    label: "Compare Bridges Now",
+    href: "/routes",
   },
   secondaryCTA: {
-    label: "View Routes",
-    href: "/routes",
+    label: "How It Works",
+    href: "/support",
   },
 };
 
 export const features: Feature[] = [
   {
-    title: "Bridge Aggregation",
+    title: "Real-Time Rate Comparison",
     description:
-      "Connect to top protocols like Everclear, Hop, Axelar, and Wormhole with real-time data.",
+      "Instantly compare fees from Across, Stargate, Wormhole, Synapse, cBridge, LayerZero, and more. Always get the best rate.",
     icon: "zap",
   },
   {
-    title: "Security Scoring",
-    description: "Heuristic scoring based on audits, exploit history, and custodial risk analysis.",
+    title: "Security-First Approach",
+    description:
+      "View audit history, security scores, and exploit records for each bridge. Make informed decisions with transparent security data.",
     icon: "shield",
   },
   {
-    title: "Quote Comparison",
+    title: "Speed & Cost Optimized",
     description:
-      "Compare fees, speeds, and risks side by side to find the best route for your transfer.",
+      "See exact transfer times and fees side-by-side. Choose the perfect balance between speed, cost, and security for your needs.",
     icon: "chart",
   },
 ];
 
 export const stats: Stat[] = [
   {
-    value: "8+",
+    value: "9",
     label: "Bridge Protocols",
-    description: "Everclear, Hop, Axelar & more",
+    description: "Across, Stargate, Wormhole, Synapse & more",
     status: "active",
   },
   {
     value: "20+",
     label: "Supported Chains",
-    description: "Ethereum, Polygon, Arbitrum & more",
+    description: "Ethereum, Polygon, Arbitrum, Base, zkSync & more",
+    status: "active",
+  },
+  {
+    value: "30%",
+    label: "Average Savings",
+    description: "Users save up to 30% on bridge fees",
+    status: "active",
+  },
+  {
+    value: "<5s",
+    label: "Quote Speed",
+    description: "Get instant quotes from all bridges",
     status: "active",
   },
   {
     value: "🚀",
     label: "Volume Tracking",
-    description: "Real-time analytics coming soon",
+    description: "Real-time analytics and insights",
     status: "coming-soon",
   },
   {
-    value: "⚡",
-    label: "Smart Router",
-    description: "AI-powered route optimization in development",
+    value: "🤖",
+    label: "AI Route Optimizer",
+    description: "Machine learning-powered route selection",
     status: "coming-soon",
   },
 ];

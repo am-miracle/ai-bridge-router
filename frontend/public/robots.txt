@@ -1,0 +1,13 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Disallow admin or private routes
+Disallow: /api/
+Disallow: /_astro/
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 0.5
+
+# Sitemap location
+Sitemap: https://bridgerouter.com/sitemap-index.xml

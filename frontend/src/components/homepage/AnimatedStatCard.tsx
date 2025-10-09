@@ -110,14 +110,9 @@ export function AnimatedStatCard({ stat, index }: AnimatedStatCardProps) {
         {stat.label}
       </motion.div>
       {stat.description && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          whileHover={{ opacity: 1, height: "auto" }}
-          transition={{ duration: 0.3 }}
-          className="text-xs text-muted-foreground/70 mt-2 overflow-hidden"
-        >
+        <div className="text-xs text-muted-foreground/70 mt-2 opacity-0 max-h-0 overflow-hidden group-hover:opacity-100 group-hover:max-h-20 transition-all duration-300">
           {stat.description}
-        </motion.div>
+        </div>
       )}
     </motion.div>
   );

@@ -1,8 +1,15 @@
 use tracing::{error, info, warn};
 
+pub mod across;
 pub mod axelar;
+pub mod cbridge;
 pub mod everclear;
 pub mod hop;
+pub mod layerzero;
+pub mod orbiter;
+pub mod stargate;
+pub mod synapse;
+pub mod wormhole;
 
 use crate::cache::CacheClient;
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
@@ -31,9 +38,37 @@ pub async fn get_all_bridge_quotes(
     let everclear_fut = timeout(bridge_timeout, everclear::get_quote(request, config));
     let hop_fut = timeout(bridge_timeout, hop::get_quote(request, config));
     let axelar_fut = timeout(bridge_timeout, axelar::get_quote(request, config));
+    let across_fut = timeout(bridge_timeout, across::get_quote(request, config));
+    let stargate_fut = timeout(bridge_timeout, stargate::get_quote(request, config));
+    let wormhole_fut = timeout(bridge_timeout, wormhole::get_quote(request, config));
+    let layerzero_fut = timeout(bridge_timeout, layerzero::get_quote(request, config));
+    let orbiter_fut = timeout(bridge_timeout, orbiter::get_quote(request, config));
+    let cbridge_fut = timeout(bridge_timeout, cbridge::get_quote(request, config));
+    let synapse_fut = timeout(bridge_timeout, synapse::get_quote(request, config));
 
-    let (everclear_result, hop_result, axelar_result) =
-        tokio::join!(everclear_fut, hop_fut, axelar_fut);
+    let (
+        everclear_result,
+        hop_result,
+        axelar_result,
+        across_result,
+        stargate_result,
+        wormhole_result,
+        layerzero_result,
+        orbiter_result,
+        cbridge_result,
+        synapse_result,
+    ) = tokio::join!(
+        everclear_fut,
+        hop_fut,
+        axelar_fut,
+        across_fut,
+        stargate_fut,
+        wormhole_fut,
+        layerzero_fut,
+        orbiter_fut,
+        cbridge_fut,
+        synapse_fut
+    );
 
     let mut results = Vec::new();
 
@@ -127,6 +162,241 @@ pub async fn get_all_bridge_quotes(
             warn!("Axelar quote timed out after {}s", bridge_timeout.as_secs());
             results.push(BridgeQuoteWithError {
                 bridge: "Axelar".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // Across
+    match across_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got Across quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Across".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("Across quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Across".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!("Across quote timed out after {}s", bridge_timeout.as_secs());
+            results.push(BridgeQuoteWithError {
+                bridge: "Across".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // Stargate
+    match stargate_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got Stargate quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Stargate".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("Stargate quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Stargate".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "Stargate quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Stargate".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // Wormhole
+    match wormhole_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got Wormhole quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Wormhole".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("Wormhole quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Wormhole".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "Wormhole quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Wormhole".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // LayerZero
+    match layerzero_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got LayerZero quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "LayerZero".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("LayerZero quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "LayerZero".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "LayerZero quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "LayerZero".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // Orbiter
+    match orbiter_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got Orbiter quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Orbiter".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("Orbiter quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Orbiter".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "Orbiter quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Orbiter".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // cBridge
+    match cbridge_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got cBridge quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "cBridge".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("cBridge quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "cBridge".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "cBridge quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "cBridge".to_string(),
+                quote: None,
+                error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
+            });
+        }
+    }
+
+    // Synapse
+    match synapse_result {
+        Ok(Ok(quote)) => {
+            info!(
+                "Successfully got Synapse quote: fee={}, time={}s",
+                quote.fee, quote.est_time
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Synapse".to_string(),
+                quote: Some(quote),
+                error: None,
+            });
+        }
+        Ok(Err(e)) => {
+            warn!("Synapse quote failed: {}", e);
+            results.push(BridgeQuoteWithError {
+                bridge: "Synapse".to_string(),
+                quote: None,
+                error: Some(e.to_string()),
+            });
+        }
+        Err(_) => {
+            warn!(
+                "Synapse quote timed out after {}s",
+                bridge_timeout.as_secs()
+            );
+            results.push(BridgeQuoteWithError {
+                bridge: "Synapse".to_string(),
                 quote: None,
                 error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
             });
