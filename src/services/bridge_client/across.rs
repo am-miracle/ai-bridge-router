@@ -16,9 +16,11 @@ struct AcrossSuggestedFeesResponse {
     /// Capital fee charged by LPs
     capital_fee_percent: String,
     /// Relayer gas fee
+    #[allow(dead_code)]
     relayer_gas_fee: AcrossFee,
     /// Timestamp when quote expires
     #[serde(default)]
+    #[allow(dead_code)]
     timestamp: Option<u64>,
     /// Whether the route is supported
     #[serde(default)]
@@ -29,6 +31,7 @@ struct AcrossSuggestedFeesResponse {
 struct AcrossFee {
     /// Fee amount as string (in wei or smallest unit)
     #[serde(default)]
+    #[allow(dead_code)]
     total: Option<String>,
     /// Percentage as string
     #[serde(default)]
