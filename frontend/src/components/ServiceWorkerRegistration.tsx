@@ -48,18 +48,6 @@ export function ServiceWorkerRegistration() {
     }
   };
 
-  const activateUpdate = () => {
-    if (registration?.waiting) {
-      // Tell the waiting service worker to skip waiting
-      registration.waiting.postMessage({ type: "SKIP_WAITING" });
-
-      // Reload the page when the new service worker activates
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        window.location.reload();
-      });
-    }
-  };
-
   const clearCache = async () => {
     if (registration) {
       registration.active?.postMessage({ type: "CLEAR_CACHE" });

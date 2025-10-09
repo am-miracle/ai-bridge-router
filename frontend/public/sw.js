@@ -1,7 +1,7 @@
 // Service Worker for Bridge Router
 // Version: 1.0.0
 
-const CACHE_VERSION = 'bridge-router-v1';
+const CACHE_VERSION = "bridge-router-v1";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
 const API_CACHE = `${CACHE_VERSION}-api`;
@@ -16,25 +16,22 @@ const CACHE_DURATION = {
 };
 
 // Static assets to cache on install
-const STATIC_ASSETS = [
-  '/',
-  '/routes',
-  '/support',
-  '/_astro/client.js',
-  '/manifest.json',
-];
+const STATIC_ASSETS = ["/", "/routes", "/support", "/_astro/client.js", "/manifest.json"];
 
 // Install event - cache static assets
-self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
+self.addEventListener("install", (event) => {
+  console.log("[SW] Installing service worker...");
 
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Failed to cache some static assets:', err);
-      });
-    })
+    (async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      console.log("[SW] Caching static assets");
+      try {
+        await cache.addAll(STATIC_ASSETS);
+      } catch (err) {
+        console.warn("[SW] Failed to cache some static assets:", err);
+      }
+    })()
   );
 
   // Activate immediately
@@ -42,17 +39,22 @@ self.addEventListener('install', (event) => {
 });
 
 // Activate event - clean up old caches
-self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
+self.addEventListener("activate", (event) => {
+  console.log("[SW] Activating service worker...");
 
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           // Delete old versions of caches
-          if (cacheName.startsWith('bridge-router-') && cacheName !== STATIC_CACHE &&
-              cacheName !== IMAGE_CACHE && cacheName !== API_CACHE && cacheName !== FONT_CACHE) {
-            console.log('[SW] Deleting old cache:', cacheName);
+          if (
+            cacheName.startsWith("bridge-router-") &&
+            cacheName !== STATIC_CACHE &&
+            cacheName !== IMAGE_CACHE &&
+            cacheName !== API_CACHE &&
+            cacheName !== FONT_CACHE
+          ) {
+            console.log("[SW] Deleting old cache:", cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -65,28 +67,28 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch event - handle requests with caching strategies
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
   // Skip non-GET requests
-  if (request.method !== 'GET') {
+  if (request.method !== "GET") {
     return;
   }
 
   // Skip chrome extensions and dev server
-  if (url.protocol === 'chrome-extension:' || url.hostname === 'localhost') {
+  if (url.protocol === "chrome-extension:" || url.hostname === "localhost") {
     return;
   }
 
   // Handle different types of requests
-  if (request.destination === 'image') {
+  if (request.destination === "image") {
     event.respondWith(handleImageRequest(request));
-  } else if (url.pathname.startsWith('/api/')) {
+  } else if (url.pathname.startsWith("/api/")) {
     event.respondWith(handleApiRequest(request));
-  } else if (request.destination === 'font') {
+  } else if (request.destination === "font") {
     event.respondWith(handleFontRequest(request));
-  } else if (request.destination === 'script' || request.destination === 'style') {
+  } else if (request.destination === "script" || request.destination === "style") {
     event.respondWith(handleStaticAsset(request));
   } else {
     event.respondWith(handlePageRequest(request));
@@ -102,7 +104,7 @@ async function handleImageRequest(request) {
   const cached = await cache.match(request);
 
   if (cached) {
-    console.log('[SW] Image from cache:', request.url);
+    console.log("[SW] Image from cache:", request.url);
     return cached;
   }
 
@@ -112,14 +114,14 @@ async function handleImageRequest(request) {
     if (response.ok) {
       // Clone response before caching
       cache.put(request, response.clone());
-      console.log('[SW] Image cached:', request.url);
+      console.log("[SW] Image cached:", request.url);
     }
 
     return response;
   } catch (error) {
-    console.error('[SW] Image fetch failed:', error);
+    console.error("[SW] Image fetch failed:", error);
     // Return a placeholder or cached version if available
-    return new Response('', { status: 404, statusText: 'Image not found' });
+    return new Response("", { status: 404, statusText: "Image not found" });
   }
 }
 
@@ -137,22 +139,22 @@ async function handleApiRequest(request) {
       // Cache successful API responses for 5 minutes
       const clonedResponse = response.clone();
       cache.put(request, clonedResponse);
-      console.log('[SW] API response cached:', request.url);
+      console.log("[SW] API response cached:", request.url);
     }
 
     return response;
   } catch (error) {
-    console.log('[SW] Network failed, trying cache for:', request.url);
+    console.log("[SW] Network failed, trying cache for:", request.url);
     const cached = await cache.match(request);
 
     if (cached) {
-      console.log('[SW] Returning cached API response');
+      console.log("[SW] Returning cached API response");
       return cached;
     }
 
-    return new Response(JSON.stringify({ error: 'Network error' }), {
+    return new Response(JSON.stringify({ error: "Network error" }), {
       status: 503,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     });
   }
 }
@@ -177,8 +179,8 @@ async function handleFontRequest(request) {
 
     return response;
   } catch (error) {
-    console.error('[SW] Font fetch failed:', error);
-    return new Response('', { status: 404 });
+    console.error("[SW] Font fetch failed:", error);
+    return new Response("", { status: 404 });
   }
 }
 
@@ -191,12 +193,14 @@ async function handleStaticAsset(request) {
   const cached = await cache.match(request);
 
   // Return cached immediately if available
-  const fetchPromise = fetch(request).then((response) => {
-    if (response.ok) {
-      cache.put(request, response.clone());
-    }
-    return response;
-  }).catch(() => cached);
+  const fetchPromise = fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => cached);
 
   return cached || fetchPromise;
 }
@@ -219,23 +223,23 @@ async function handlePageRequest(request) {
     const cached = await cache.match(request);
 
     if (cached) {
-      console.log('[SW] Serving cached page:', request.url);
+      console.log("[SW] Serving cached page:", request.url);
       return cached;
     }
 
     // Return offline page if available
-    const offlinePage = await cache.match('/offline.html');
-    return offlinePage || new Response('Offline', { status: 503 });
+    const offlinePage = await cache.match("/offline.html");
+    return offlinePage || new Response("Offline", { status: 503 });
   }
 }
 
 // Handle messages from clients
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
 
-  if (event.data && event.data.type === 'CLEAR_CACHE') {
+  if (event.data && event.data.type === "CLEAR_CACHE") {
     event.waitUntil(
       caches.keys().then((cacheNames) => {
         return Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -244,4 +248,4 @@ self.addEventListener('message', (event) => {
   }
 });
 
-console.log('[SW] Service Worker loaded');
+console.log("[SW] Service Worker loaded");
