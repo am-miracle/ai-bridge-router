@@ -91,7 +91,7 @@ export const faqs: FAQItem[] = [
 ];
 
 export const contactInfo = {
-  email: "support@bridgerouter.com",
+  email: "support@bridgerouter.xyz",
   discord: "https://discord.gg/bridgerouter",
   twitter: "https://twitter.com/bridgerouter",
   github: "https://github.com/bridgerouter",

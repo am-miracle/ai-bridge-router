@@ -37,7 +37,7 @@ export const features: Feature[] = [
 
 export const stats: Stat[] = [
   {
-    value: "9",
+    value: "10+",
     label: "Bridge Protocols",
     description: "Across, Stargate, Wormhole, Synapse & more",
     status: "active",

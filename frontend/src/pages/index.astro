@@ -2,10 +2,10 @@
 export const prerender = true;
 
 import MainLayout from "../layouts/main.astro";
-import { AnimatedHero } from "@/components/homepage/AnimatedHero";
+import { LazyAnimatedHero } from "@/components/lazy/LazyAnimatedHero";
 import { AnimatedFeatureCard } from "@/components/homepage/AnimatedFeatureCard";
 import { AnimatedStatCard } from "@/components/homepage/AnimatedStatCard";
-import { WelcomeModal } from "@/components/WelcomeModal";
+import { LazyWelcomeModal } from "@/components/lazy/LazyWelcomeModal";
 import { heroContent, features, stats } from "@/config/homepage";
 import { defaultMeta } from "@/config/site";
 
@@ -17,7 +17,7 @@ const content = {
 ---
 
 <MainLayout content={content}>
-  <WelcomeModal client:load />
+  <LazyWelcomeModal client:idle />
 
   <!-- Main content wrapper for better SEO structure -->
   <article class="w-full">
@@ -27,12 +27,12 @@ const content = {
       aria-labelledby="hero-heading"
     >
       <div class="w-full max-w-6xl mx-auto px-4">
-        <AnimatedHero
+        <LazyAnimatedHero
           title={heroContent.title}
           description={heroContent.description}
           primaryCTA={heroContent.primaryCTA}
           secondaryCTA={heroContent.secondaryCTA}
-          client:load
+          client:visible
         />
       </div>
     </section>
@@ -54,7 +54,7 @@ const content = {
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {
             features.map((feature, index) => (
-              <AnimatedFeatureCard feature={feature} index={index} client:load />
+              <AnimatedFeatureCard feature={feature} index={index} client:visible />
             ))
           }
         </div>
@@ -84,7 +84,11 @@ const content = {
           class="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 p-6 md:p-8 rounded-2xl border bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm shadow-2xl"
           role="list"
         >
-          {stats.map((stat, index) => <AnimatedStatCard stat={stat} index={index} client:load />)}
+          {
+            stats.map((stat, index) => (
+              <AnimatedStatCard stat={stat} index={index} client:visible />
+            ))
+          }
         </div>
       </div>
     </section>

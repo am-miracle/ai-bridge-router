@@ -15,14 +15,14 @@ const content = {
 <MainLayout content={content}>
   <div class="max-w-5xl mx-auto space-y-16">
     {/* Hero Section */}
-    <AnimatedSupportHero client:load />
+    <AnimatedSupportHero client:visible />
 
     <!-- <section class="space-y-6">
             <h2 class="text-2xl font-bold">Browse by Category</h2>
             <div class="grid md:grid-cols-2 gap-4">
                 {
                     supportCategories.map((category) => (
-                        <SupportCategoryCard category={category} client:load />
+                        <SupportCategoryCard category={category} client:visible />
                     ))
                 }
             </div>
@@ -36,7 +36,7 @@ const content = {
                 </p>
             </div> -->
       <div class="space-y-3">
-        {faqs.map((faq, index) => <FAQItemComponent faq={faq} index={index} client:load />)}
+        {faqs.map((faq, index) => <FAQItemComponent faq={faq} index={index} client:visible />)}
       </div>
     </section>
 
@@ -48,13 +48,13 @@ const content = {
       </div>
 
       <div class="grid md:grid-cols-2 gap-6">
-        <AnimatedContactCard type="email" email={contactInfo.email} index={0} client:load />
+        <AnimatedContactCard type="email" email={contactInfo.email} index={0} client:visible />
         <AnimatedContactCard
           type="community"
           discord={contactInfo.discord}
           twitter={contactInfo.twitter}
           index={1}
-          client:load
+          client:visible
         />
       </div>
     </section>

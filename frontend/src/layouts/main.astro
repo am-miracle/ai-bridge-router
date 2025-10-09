@@ -3,8 +3,9 @@ import "../styles/global.css";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { ScrollProgress } from "@/components/animations/ScrollProgress";
-import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
+import { LazyBackgroundRipple } from "@/components/lazy/LazyBackgroundRipple";
 import { Toaster } from "@/components/ui/toaster";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { siteConfig, defaultMeta } from "@/config/site";
 import Analytics from "@vercel/analytics/astro";
 import SpeedInsights from "@vercel/speed-insights/astro";
@@ -109,10 +110,31 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
       })}
     />
 
-    <!-- Preconnect to external domains -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://assets.coingecko.com" />
+    <!-- Preconnect to external domains (high priority) -->
+    <link rel="preconnect" href="https://assets.coingecko.com" crossorigin />
+    <link rel="dns-prefetch" href="https://assets.coingecko.com" />
+
+    <!-- DNS prefetch for other external resources -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
     <link rel="dns-prefetch" href="https://raw.githubusercontent.com" />
+
+    <!-- Prefetch next likely pages -->
+    <link rel="prefetch" href="/routes" />
+
+    <!-- Preload critical React chunks -->
+    <link rel="modulepreload" href="/_astro/client.js" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Bridge Router" />
+    <link rel="apple-touch-icon" href="/icon-192x192.png" />
+
+    <!-- Android PWA Support -->
+    <meta name="mobile-web-app-capable" content="yes" />
 
     <script is:inline>
       // Initialize theme before page renders to prevent flash
@@ -125,22 +147,25 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
   <body class="min-h-screen bg-background text-foreground flex flex-col relative overflow-x-hidden">
     {/* Background Ripple Effect */}
     <div class="fixed inset-0 z-0">
-      <BackgroundRippleEffect client:load />
+      <LazyBackgroundRipple client:idle />
     </div>
 
     {/* Content */}
     <div class="relative z-10 flex flex-col min-h-screen">
-      <ScrollProgress client:load />
-      <Navigation client:load />
+      <ScrollProgress client:idle />
+      <Navigation client:idle />
       <main class="container mx-auto px-4 py-8 flex-1">
         <slot />
       </main>
-      <Footer client:load />
+      <Footer client:visible />
       <Analytics />
       <SpeedInsights />
     </div>
 
     {/* Toast Notifications */}
-    <Toaster client:load />
+    <Toaster client:idle />
+
+    {/* Service Worker for PWA and Caching */}
+    <ServiceWorkerRegistration client:idle />
   </body>
 </html>

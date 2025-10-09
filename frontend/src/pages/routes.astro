@@ -43,12 +43,12 @@ if (result?.data) {
 ---
 
 <MainLayout content={content}>
-  {urlWithParams && <URLUpdater queryParams={urlWithParams} client:only="react" />}
+  {urlWithParams && <URLUpdater queryParams={urlWithParams} client:idle />}
   <div class="max-w-6xl mx-auto space-y-8">
     <HeroSection
       title="Find the Best Bridge Route"
       description="Compare routes across multiple bridges to get the best rates, fastest times, and highest security."
-      client:only="react"
+      client:visible
     />
 
     {/* Quote Form */}
@@ -60,7 +60,7 @@ if (result?.data) {
       actionUrl={actions.getRouteQuote.toString()}
       formData={formDataFromUrl}
       hasResults={!!result?.data?.routes}
-      client:only="react"
+      client:idle
     />
 
     {/* Results Section */}
@@ -71,11 +71,11 @@ if (result?.data) {
           amount={result.data.amount}
           sourceChain={result.data.sourceChain}
           destinationChain={result.data.destinationChain}
-          client:only="react"
+          client:visible
         />
       )
     }
 
-    {!result && <EmptyState client:only="react" />}
+    {!result && <EmptyState client:visible />}
   </div>
 </MainLayout>

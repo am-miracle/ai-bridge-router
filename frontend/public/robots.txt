@@ -10,4 +10,4 @@ Disallow: /_astro/
 Crawl-delay: 0.5
 
 # Sitemap location
-Sitemap: https://bridgerouter.com/sitemap-index.xml
+Sitemap: https://bridgerouter.xyz/sitemap-index.xml

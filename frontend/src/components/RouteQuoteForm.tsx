@@ -191,6 +191,10 @@ export function RouteQuoteForm({
                         <img
                           src={chain.logoUrl}
                           alt={`${chain.name} logo`}
+                          width="20"
+                          height="20"
+                          loading="lazy"
+                          decoding="async"
                           style={{
                             width: "20px",
                             height: "20px",
@@ -232,6 +236,10 @@ export function RouteQuoteForm({
                         <img
                           src={chain.logoUrl}
                           alt={`${chain.name} logo`}
+                          width="20"
+                          height="20"
+                          loading="lazy"
+                          decoding="async"
                           style={{
                             width: "20px",
                             height: "20px",
@@ -273,6 +281,10 @@ export function RouteQuoteForm({
                         <img
                           src={token.logoUrl}
                           alt={`${token.symbol} logo`}
+                          width="20"
+                          height="20"
+                          loading="lazy"
+                          decoding="async"
                           style={{
                             width: "20px",
                             height: "20px",

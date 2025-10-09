@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Bridge Router",
   description:
     "Compare and find the best cross-chain bridge routes across Ethereum, Polygon, Arbitrum, Base, Optimism, and 10+ chains. Save on fees with real-time bridge comparison.",
-  url: "https://bridgerouter.com",
+  url: "https://bridgerouter.xyz",
   author: "Bridge Router Team",
   keywords: [
     "cross-chain bridge",
