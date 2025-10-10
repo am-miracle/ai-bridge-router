@@ -3,6 +3,23 @@ use tracing::{debug, info};
 use super::{get_cached_quote, retry_request};
 use crate::models::bridge::{BridgeClientConfig, BridgeError, BridgeQuote, BridgeQuoteRequest};
 
+// const SYNAPSE_API_BASE: &str = "https://api.synapseprotocol.com/";
+
+// /// Synapse quote request payload
+// #[derive(Debug, Serialize)]
+// #[serde(rename_all = "camelCase")]
+// struct SynapseQuoteRequest {
+//     from_chain_Id: String,
+//     from_token: String,
+//     from_amount: String,
+//     from_sender: String,
+//     to_chain_id: String,
+//     to_token: String,
+//     to_recipient: String,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     slippage: Option<f64>,
+// }
+
 /// Map chain names to Synapse chain IDs
 fn map_chain_name(chain: &str) -> Result<u64, BridgeError> {
     let chain_id = match chain.to_lowercase().as_str() {

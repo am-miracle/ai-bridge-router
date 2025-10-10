@@ -245,20 +245,19 @@ async fn fetch_cbridge_quote_once(
     );
 
     let est_time = match config.client.get(&latency_url).send().await {
-        Ok(resp) if resp.status().is_success() => {
-            match resp.text().await {
-                Ok(text) => {
-                    match serde_json::from_str::<CbridgeLatencyResponse>(&text) {
-                        Ok(latency_data) => latency_data
-                            .median_transfer_latency_in_second
-                            .unwrap_or(300.0) as u64,
-                        Err(_) => 300, // Default 5 minutes
-                    }
-                }
-                Err(_) => 300,
-            }
-        }
-        _ => 300, // Default 5 minutes
+        Ok(resp) if resp.status().is_success() => match resp.text().await {
+            Ok(text) => match serde_json::from_str::<CbridgeLatencyResponse>(&text) {
+                Ok(latency_data) => latency_data
+                    .median_transfer_latency_in_second
+                    .map(|t| t as u64)
+                    .unwrap_or_else(|| {
+                        estimate_cbridge_time(&request.from_chain, &request.to_chain)
+                    }),
+                Err(_) => estimate_cbridge_time(&request.from_chain, &request.to_chain),
+            },
+            Err(_) => estimate_cbridge_time(&request.from_chain, &request.to_chain),
+        },
+        _ => estimate_cbridge_time(&request.from_chain, &request.to_chain),
     };
 
     // Calculate fee from response

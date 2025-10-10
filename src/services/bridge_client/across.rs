@@ -285,8 +285,10 @@ async fn fetch_across_quote_once(
                 input_readable * fee_pct
             };
 
-            // Use estimated fill time from API or default
-            let est_time = across_response.estimated_fill_time_sec.unwrap_or(240);
+            // Use estimated fill time from API or calculate based on route
+            let est_time = across_response
+                .estimated_fill_time_sec
+                .unwrap_or_else(|| estimate_across_time(&request.from_chain, &request.to_chain));
 
             // Extract fee percentage for metadata
             let relay_fee_pct = across_response
