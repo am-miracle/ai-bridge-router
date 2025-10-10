@@ -108,6 +108,7 @@ fn map_chain_id(chain: &str) -> Result<String, BridgeError> {
 }
 
 /// Map chain names for Orbiter Finance (legacy)
+#[allow(dead_code)]
 fn map_chain_name(chain: &str) -> Result<String, BridgeError> {
     let orbiter_chain = match chain.to_lowercase().as_str() {
         "ethereum" | "eth" | "mainnet" => "ethereum",
