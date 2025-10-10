@@ -9,7 +9,6 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import { siteConfig, defaultMeta } from "@/config/site";
 import Analytics from "@vercel/analytics/astro";
 import SpeedInsights from "@vercel/speed-insights/astro";
-
 const { content } = Astro.props;
 
 const pageTitle = content?.title || defaultMeta.title;
@@ -158,8 +157,6 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
         <slot />
       </main>
       <Footer client:visible />
-      <Analytics />
-      <SpeedInsights />
     </div>
 
     {/* Toast Notifications */}
@@ -167,5 +164,7 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
 
     {/* Service Worker for PWA and Caching */}
     <ServiceWorkerRegistration client:idle />
+    <Analytics />
+    <SpeedInsights />
   </body>
 </html>

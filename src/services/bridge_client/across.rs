@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use super::{get_cached_quote, retry_request};
@@ -11,31 +11,49 @@ const ACROSS_API_BASE: &str = "https://app.across.to/api";
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AcrossSuggestedFeesResponse {
-    /// Total relay fee (LP fee + relayer fee)
-    total_relay_fee: AcrossFee,
-    /// Capital fee charged by LPs
-    capital_fee_percent: String,
-    /// Relayer gas fee
-    #[allow(dead_code)]
-    relayer_gas_fee: AcrossFee,
-    /// Timestamp when quote expires
+    /// Estimated fill time in seconds
     #[serde(default)]
+    estimated_fill_time_sec: Option<u64>,
+    /// Total relay fee percentage
+    #[serde(default)]
+    relay_fee_pct: Option<String>,
+    /// Total relay fee amount
+    #[serde(default)]
+    relay_fee_total: Option<String>,
+    /// LP fee percentage
+    #[serde(default)]
+    lp_fee_pct: Option<String>,
+    /// Capital fee percentage
+    #[serde(default)]
+    capital_fee_pct: Option<String>,
+    /// Relayer gas fee percentage
     #[allow(dead_code)]
-    timestamp: Option<u64>,
+    #[serde(default)]
+    relayer_gas_fee_pct: Option<String>,
+    /// Output amount after fees
+    #[serde(default)]
+    output_amount: Option<String>,
+    /// Timestamp when quote expires
+    #[allow(dead_code)]
+    #[serde(default)]
+    timestamp: Option<String>,
     /// Whether the route is supported
     #[serde(default)]
-    is_amount_too_low: Option<bool>,
+    is_amount_too_low: bool,
+    /// Limits information
+    #[serde(default)]
+    limits: Option<AcrossLimits>,
 }
 
-#[derive(Debug, Deserialize)]
-struct AcrossFee {
-    /// Fee amount as string (in wei or smallest unit)
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AcrossLimits {
     #[serde(default)]
-    #[allow(dead_code)]
-    total: Option<String>,
-    /// Percentage as string
+    min_deposit: Option<String>,
     #[serde(default)]
-    pct: Option<String>,
+    max_deposit: Option<String>,
+    #[serde(default)]
+    max_deposit_instant: Option<String>,
 }
 
 /// Map chain names to Across chain IDs
@@ -125,6 +143,29 @@ fn get_token_decimals(token: &str) -> u32 {
     }
 }
 
+/// Estimate transfer time based on chain pair
+/// Across uses optimistic bridging with different speeds per route
+fn estimate_across_time(from_chain: &str, to_chain: &str) -> u64 {
+    let from = from_chain.to_lowercase();
+    let to = to_chain.to_lowercase();
+
+    // L2 to L2 transfers are fastest (1-3 minutes)
+    let l2_chains = [
+        "optimism", "arbitrum", "base", "polygon", "linea", "blast", "mode", "zksync",
+    ];
+    let from_is_l2 = l2_chains.iter().any(|&l2| from.contains(l2));
+    let to_is_l2 = l2_chains.iter().any(|&l2| to.contains(l2));
+
+    match (from_is_l2, to_is_l2) {
+        // L2 to L2: Very fast (1-2 minutes)
+        (true, true) => 90,
+        // L1 to L2 or L2 to L1: Fast (2-4 minutes)
+        (true, false) | (false, true) => 180,
+        // L1 to L1: Moderate (3-5 minutes)
+        (false, false) => 240,
+    }
+}
+
 /// Get a quote from Across Protocol
 pub async fn get_quote(
     request: &BridgeQuoteRequest,
@@ -171,8 +212,9 @@ async fn fetch_across_quote_once(
     let origin_chain_id = map_chain_name(&request.from_chain)?;
     let destination_chain_id = map_chain_name(&request.to_chain)?;
 
-    // Get token address
-    let token = get_token_address(&request.asset, &request.from_chain)?;
+    // Get token addresses for both origin and destination chains
+    let input_token = get_token_address(&request.asset, &request.from_chain)?;
+    let output_token = get_token_address(&request.asset, &request.to_chain)?;
 
     // Get amount or use default
     let amount = request.amount.clone().unwrap_or_else(|| {
@@ -182,8 +224,8 @@ async fn fetch_across_quote_once(
 
     // Build API URL for suggested fees
     let url = format!(
-        "{}/suggested-fees?originChainId={}&destinationChainId={}&token={}&amount={}",
-        ACROSS_API_BASE, origin_chain_id, destination_chain_id, token, amount
+        "{}/suggested-fees?inputToken={}&outputToken={}&originChainId={}&destinationChainId={}&amount={}",
+        ACROSS_API_BASE, input_token, output_token, origin_chain_id, destination_chain_id, amount
     );
 
     info!("Requesting Across quote from: {}", url);
@@ -210,39 +252,58 @@ async fn fetch_across_quote_once(
     match serde_json::from_str::<AcrossSuggestedFeesResponse>(&response_text) {
         Ok(across_response) => {
             // Check if amount is too low
-            if across_response.is_amount_too_low.unwrap_or(false) {
+            if across_response.is_amount_too_low {
                 return Err(BridgeError::BadResponse {
                     message: "Amount too low for Across Protocol".to_string(),
                 });
             }
 
-            // Parse total relay fee
-            let fee_pct_str = across_response
-                .total_relay_fee
-                .pct
-                .unwrap_or_else(|| "0.1".to_string());
-            let fee_pct: f64 = fee_pct_str.parse().unwrap_or(0.001);
+            // Parse amounts and calculate fee
+            let decimals = get_token_decimals(&request.asset);
+            let divisor = 10_f64.powi(decimals as i32);
 
-            // Convert to actual fee based on amount
-            let amount_f64 = request
+            // Get input amount
+            let input_amount = request
                 .amount
                 .as_ref()
                 .and_then(|a| a.parse::<f64>().ok())
                 .unwrap_or(1_000_000.0);
 
-            let decimals = get_token_decimals(&request.asset);
-            let divisor = 10_f64.powi(decimals as i32);
-            let amount_readable = amount_f64 / divisor;
+            let input_readable = input_amount / divisor;
 
-            let total_fee = amount_readable * fee_pct;
+            // Calculate fee from output amount if available
+            let fee_readable = if let Some(output_str) = &across_response.output_amount {
+                let output_amount = output_str.parse::<f64>().unwrap_or(input_amount);
+                let output_readable = output_amount / divisor;
+                input_readable - output_readable
+            } else {
+                // Fallback to percentage calculation
+                let fee_pct_str = across_response.relay_fee_pct.as_deref().unwrap_or("0");
+                // Fee percentage is in basis points (e.g., "78905024308003" represents a very small percentage)
+                // Need to divide by 1e18 to get actual percentage
+                let fee_pct = fee_pct_str.parse::<f64>().unwrap_or(0.0) / 1e18;
+                input_readable * fee_pct
+            };
 
-            // Across is typically very fast (optimistic approach)
-            // Origin to destination: usually 1-4 minutes
-            let est_time = 240; // ~4 minutes average
+            // Use estimated fill time from API or default
+            let est_time = across_response.estimated_fill_time_sec.unwrap_or(240) as u64;
+
+            // Extract fee percentage for metadata
+            let relay_fee_pct = across_response
+                .relay_fee_pct
+                .as_deref()
+                .and_then(|s| s.parse::<f64>().ok())
+                .map(|pct| pct / 1e18)
+                .unwrap_or(0.0);
 
             let metadata = serde_json::json!({
-                "total_relay_fee_pct": fee_pct,
-                "capital_fee_percent": across_response.capital_fee_percent,
+                "relay_fee_pct": relay_fee_pct,
+                "relay_fee_total": across_response.relay_fee_total,
+                "capital_fee_pct": across_response.capital_fee_pct,
+                "lp_fee_pct": across_response.lp_fee_pct,
+                "estimated_fill_time_sec": across_response.estimated_fill_time_sec,
+                "output_amount": across_response.output_amount,
+                "limits": across_response.limits,
                 "network": "Across Protocol",
                 "architecture": "optimistic_bridging_intent_based",
                 "security_model": "uma_optimistic_oracle",
@@ -252,7 +313,7 @@ async fn fetch_across_quote_once(
 
             let quote = BridgeQuote {
                 bridge: "Across".to_string(),
-                fee: total_fee,
+                fee: fee_readable,
                 est_time,
                 metadata: Some(metadata),
             };
@@ -261,7 +322,7 @@ async fn fetch_across_quote_once(
                 "Across quote retrieved: fee={:.6} {} ({:.4}%), time={}s",
                 quote.fee,
                 request.asset,
-                fee_pct * 100.0,
+                relay_fee_pct * 100.0,
                 quote.est_time
             );
 
@@ -281,28 +342,47 @@ fn create_across_estimate(request: &BridgeQuoteRequest) -> Result<BridgeQuote, B
     map_chain_name(&request.to_chain)?;
     get_token_address(&request.asset, &request.from_chain)?;
 
-    // Across typical fees: 0.05-0.15% + gas
-    let estimated_fee = match request.asset.to_uppercase().as_str() {
-        "USDC" | "USDT" => 0.2,   // ~$0.20
-        "ETH" | "WETH" => 0.0004, // ~$1.20
-        "DAI" => 0.25,            // ~$0.25
-        "WBTC" => 0.000015,       // ~$0.75
-        _ => 0.001,               // 0.1%
+    // Calculate fee based on amount (percentage-based)
+    let decimals = get_token_decimals(&request.asset);
+    let divisor = 10_f64.powi(decimals as i32);
+
+    let amount_f64 = request
+        .amount
+        .as_ref()
+        .and_then(|a| a.parse::<f64>().ok())
+        .unwrap_or(10_f64.powi(decimals as i32));
+
+    let amount_readable = amount_f64 / divisor;
+
+    // Across typical fees: 0.08-0.15% (relay fee) + gas costs
+    // Gas costs vary by chain and token
+    let (fee_percentage, base_gas_cost) = match request.asset.to_uppercase().as_str() {
+        "USDC" | "USDT" => (0.0012, 0.15),  // 0.12% + ~$0.15 gas
+        "ETH" | "WETH" => (0.0010, 0.0003), // 0.10% + ~$0.90 gas (in ETH)
+        "DAI" => (0.0012, 0.20),            // 0.12% + ~$0.20 gas
+        "WBTC" => (0.0015, 0.000012),       // 0.15% + ~$0.60 gas (in BTC)
+        _ => (0.0015, 1.0),                 // 0.15% + base gas estimate
     };
 
-    // Across is one of the fastest bridges (optimistic)
-    let est_time = 240; // ~4 minutes
+    let estimated_fee = (amount_readable * fee_percentage) + base_gas_cost;
+
+    // Time estimates based on chain pair and typical congestion
+    // Across is very fast (optimistic bridging), but varies by route
+    let est_time = estimate_across_time(&request.from_chain, &request.to_chain);
 
     let metadata = serde_json::json!({
         "estimated": true,
+        "fee_percentage": fee_percentage,
+        "base_gas_cost": base_gas_cost,
+        "amount": amount_readable,
         "network": "Across Protocol",
         "architecture": "optimistic_bridging_intent_based",
         "security_model": "uma_optimistic_oracle",
         "supported_chains": ["ethereum", "optimism", "polygon", "arbitrum", "base", "linea", "blast"],
-        "note": "Estimated quote - Across uses optimistic validation for fast bridging",
+        "note": "Estimated quote (API unavailable) - Calculated using typical Across fees",
         "route": format!("{} -> {}", request.from_chain, request.to_chain),
-        "typical_time": "1-4 minutes",
-        "fees": "0.05-0.15% + gas"
+        "typical_time": format!("{}-{} minutes", est_time / 60 - 1, est_time / 60 + 1),
+        "fee_formula": format!("{}% + {} {} gas", fee_percentage * 100.0, base_gas_cost, request.asset)
     });
 
     let quote = BridgeQuote {
@@ -347,13 +427,30 @@ mod tests {
             asset: "USDC".to_string(),
             from_chain: "ethereum".to_string(),
             to_chain: "arbitrum".to_string(),
-            amount: Some("1000000".to_string()),
+            amount: Some("1000000".to_string()), // 1 USDC
             slippage: 0.5,
         };
 
         let quote = create_across_estimate(&request).unwrap();
         assert_eq!(quote.bridge, "Across");
         assert!(quote.fee > 0.0);
-        assert_eq!(quote.est_time, 240);
+        // Ethereum (L1) to Arbitrum (L2) should be 180 seconds
+        assert_eq!(quote.est_time, 180);
+        // Fee should be reasonable for 1 USDC (0.12% + $0.15 = ~$0.162)
+        assert!(quote.fee > 0.15 && quote.fee < 0.25);
+    }
+
+    #[test]
+    fn test_across_time_estimates() {
+        // L2 to L2 should be fastest
+        assert_eq!(estimate_across_time("optimism", "arbitrum"), 90);
+        assert_eq!(estimate_across_time("base", "polygon"), 90);
+
+        // L1 to L2 or L2 to L1 should be fast
+        assert_eq!(estimate_across_time("ethereum", "arbitrum"), 180);
+        assert_eq!(estimate_across_time("optimism", "ethereum"), 180);
+
+        // L1 to L1 should be moderate
+        assert_eq!(estimate_across_time("ethereum", "ethereum"), 240);
     }
 }
