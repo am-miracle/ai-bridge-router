@@ -47,6 +47,7 @@ struct CbridgeError {
 #[derive(Debug, Deserialize)]
 struct CbridgeLatencyResponse {
     #[serde(default)]
+    #[allow(dead_code)]
     err: Option<CbridgeError>,
     /// Median transfer latency in seconds
     #[serde(default)]
@@ -227,14 +228,14 @@ async fn fetch_cbridge_quote_once(
     };
 
     // Check for API error
-    if let Some(err) = &estimate_data.err {
-        if let Some(code) = err.code {
-            let msg = err.msg.as_deref().unwrap_or("Unknown error");
-            warn!("cBridge API error {}: {}", code, msg);
-            return Err(BridgeError::BadResponse {
-                message: format!("cBridge error {}: {}", code, msg),
-            });
-        }
+    if let Some(err) = &estimate_data.err
+        && let Some(code) = err.code
+    {
+        let msg = err.msg.as_deref().unwrap_or("Unknown error");
+        warn!("cBridge API error {}: {}", code, msg);
+        return Err(BridgeError::BadResponse {
+            message: format!("cBridge error {}: {}", code, msg),
+        });
     }
 
     // Fetch transfer latency
