@@ -3,9 +3,9 @@ use tracing::{error, info, warn};
 pub mod across;
 pub mod axelar;
 pub mod cbridge;
+pub mod debridge;
 pub mod everclear;
 pub mod hop;
-pub mod layerzero;
 pub mod orbiter;
 pub mod stargate;
 pub mod synapse;
@@ -41,7 +41,7 @@ pub async fn get_all_bridge_quotes(
     let across_fut = timeout(bridge_timeout, across::get_quote(request, config));
     let stargate_fut = timeout(bridge_timeout, stargate::get_quote(request, config));
     let wormhole_fut = timeout(bridge_timeout, wormhole::get_quote(request, config));
-    let layerzero_fut = timeout(bridge_timeout, layerzero::get_quote(request, config));
+    let debridge_fut = timeout(bridge_timeout, debridge::get_quote(request, config));
     let orbiter_fut = timeout(bridge_timeout, orbiter::get_quote(request, config));
     let cbridge_fut = timeout(bridge_timeout, cbridge::get_quote(request, config));
     let synapse_fut = timeout(bridge_timeout, synapse::get_quote(request, config));
@@ -53,7 +53,7 @@ pub async fn get_all_bridge_quotes(
         across_result,
         stargate_result,
         wormhole_result,
-        layerzero_result,
+        debridge_result,
         orbiter_result,
         cbridge_result,
         synapse_result,
@@ -64,7 +64,7 @@ pub async fn get_all_bridge_quotes(
         across_fut,
         stargate_fut,
         wormhole_fut,
-        layerzero_fut,
+        debridge_fut,
         orbiter_fut,
         cbridge_fut,
         synapse_fut
@@ -267,34 +267,34 @@ pub async fn get_all_bridge_quotes(
         }
     }
 
-    // LayerZero
-    match layerzero_result {
+    // deBridge
+    match debridge_result {
         Ok(Ok(quote)) => {
             info!(
-                "Successfully got LayerZero quote: fee={}, time={}s",
+                "Successfully got deBridge quote: fee={}, time={}s",
                 quote.fee, quote.est_time
             );
             results.push(BridgeQuoteWithError {
-                bridge: "LayerZero".to_string(),
+                bridge: "deBridge".to_string(),
                 quote: Some(quote),
                 error: None,
             });
         }
         Ok(Err(e)) => {
-            warn!("LayerZero quote failed: {}", e);
+            warn!("deBridge quote failed: {}", e);
             results.push(BridgeQuoteWithError {
-                bridge: "LayerZero".to_string(),
+                bridge: "deBridge".to_string(),
                 quote: None,
                 error: Some(e.to_string()),
             });
         }
         Err(_) => {
             warn!(
-                "LayerZero quote timed out after {}s",
+                "deBridge quote timed out after {}s",
                 bridge_timeout.as_secs()
             );
             results.push(BridgeQuoteWithError {
-                bridge: "LayerZero".to_string(),
+                bridge: "deBridge".to_string(),
                 quote: None,
                 error: Some(format!("Timeout after {}s", bridge_timeout.as_secs())),
             });

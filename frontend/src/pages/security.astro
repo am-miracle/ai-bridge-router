@@ -1,0 +1,153 @@
+---
+export const prerender = true;
+
+import MainLayout from "../layouts/main.astro";
+import { SecurityHero } from "@/components/security/SecurityHero";
+import { SecurityPrincipleCard } from "@/components/security/SecurityPrincipleCard";
+import { BestPracticeItem } from "@/components/security/BestPracticeItem";
+import { FAQItemComponent } from "@/components/FAQItem";
+import {
+  securityHero,
+  securityPrinciples,
+  securityFAQs,
+  bestPractices,
+  auditedBridges,
+} from "@/config/security";
+
+const content = {
+  title: "Security - Bridge Router",
+  description:
+    "Learn about Bridge Router's security practices, non-custodial architecture, and how we protect your assets through trusted bridge protocols.",
+  keywords:
+    "bridge security, cross-chain security, non-custodial bridge, crypto security, bridge audits",
+};
+---
+
+<MainLayout content={content}>
+  <div class="max-w-5xl mx-auto space-y-16">
+    {/* Hero Section */}
+    <SecurityHero
+      title={securityHero.title}
+      description={securityHero.description}
+      client:visible
+    />
+
+    {/* Security Principles */}
+    <section class="space-y-6">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl font-bold">Our Security Principles</h2>
+        <p class="text-muted-foreground">
+          How we keep your assets safe across all bridge transfers
+        </p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6">
+        {
+          securityPrinciples.map((principle, index) => (
+            <SecurityPrincipleCard principle={principle} index={index} client:visible />
+          ))
+        }
+      </div>
+    </section>
+
+    {/* Best Practices */}
+    <section class="space-y-6">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl font-bold">Security Best Practices</h2>
+        <p class="text-muted-foreground">
+          Follow these guidelines to ensure safe cross-chain transfers
+        </p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4">
+        {
+          bestPractices.map((practice, index) => (
+            <BestPracticeItem practice={practice} index={index} client:visible />
+          ))
+        }
+      </div>
+    </section>
+
+    {/* Audited Bridges */}
+    <section class="space-y-6">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl font-bold">Audited Bridge Protocols</h2>
+        <p class="text-muted-foreground">
+          All integrated bridges have been audited by reputable security firms
+        </p>
+      </div>
+      <div class="grid gap-4">
+        {
+          auditedBridges.map((bridge, index) => (
+            <div
+              class="p-4 rounded-lg border bg-card hover:bg-card/80 transition-colors"
+              style={`animation: fadeIn 0.5s ease-out ${0.05 + index * 0.05}s backwards`}
+            >
+              <div class="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h3 class="font-semibold">{bridge.name}</h3>
+                  <p class="text-sm text-muted-foreground">
+                    Audited by: {bridge.auditors.join(", ")}
+                  </p>
+                </div>
+                <div class="text-sm text-muted-foreground">Last audit: {bridge.lastAudit}</div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    {/* Security FAQs */}
+    <section class="space-y-6">
+      <div class="text-center space-y-2">
+        <h2 class="text-2xl font-bold">Security Questions</h2>
+        <p class="text-muted-foreground">Common questions about safety and security</p>
+      </div>
+      <div class="space-y-3">
+        {
+          securityFAQs.map((faq, index) => (
+            <FAQItemComponent faq={faq} index={index} client:visible />
+          ))
+        }
+      </div>
+    </section>
+
+    {/* Responsible Disclosure */}
+    <section
+      class="p-8 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20"
+    >
+      <div class="space-y-4">
+        <h3 class="text-xl font-bold">Responsible Disclosure</h3>
+        <p class="text-muted-foreground">
+          If you discover a security vulnerability in Bridge Router, please report it responsibly.
+          We take all security reports seriously and will investigate promptly.
+        </p>
+        <div class="space-y-2">
+          <p class="text-sm font-medium">Report security issues to:</p>
+          <a
+            href="mailto:judemiraco0@gmail.com?subject=Security%20Vulnerability%20Report"
+            class="text-primary hover:underline font-medium"
+          >
+            judemiraco0@gmail.com
+          </a>
+        </div>
+        <p class="text-sm text-muted-foreground">
+          Please include detailed information about the vulnerability and steps to reproduce it. We
+          aim to respond to all security reports within 48 hours.
+        </p>
+      </div>
+    </section>
+  </div>
+</MainLayout>
+
+<style>
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

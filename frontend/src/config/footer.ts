@@ -6,8 +6,8 @@ export const footerSections: FooterSection[] = [
     links: [
       { label: "Bridge", href: "/" },
       { label: "Routes", href: "/routes" },
-      { label: "History", href: "/#" },
-      { label: "Analytics", href: "/#" },
+      // { label: "History", href: "/#" },
+      // { label: "Analytics", href: "/#" },
     ],
   },
   {
@@ -15,17 +15,17 @@ export const footerSections: FooterSection[] = [
     links: [
       // { label: "Documentation", href: "/docs" },
       // { label: "API Reference", href: "/api" },
-      { label: "GitHub", href: "https://github.com", external: true },
+      { label: "GitHub", href: "https://github.com/am-miracle/ai-bridge-router", external: true },
       { label: "Blog", href: "/#" },
     ],
   },
   {
     title: "Community",
     links: [
-      { label: "Discord", href: "https://discord.com", external: true },
-      { label: "Twitter", href: "https://twitter.com", external: true },
+      // { label: "Discord", href: "https://discord.com", external: true },
+      // { label: "Twitter", href: "https://twitter.com", external: true },
       { label: "Support", href: "/support" },
-      { label: "Security", href: "/#" },
+      { label: "Security", href: "/security" },
     ],
   },
 ];

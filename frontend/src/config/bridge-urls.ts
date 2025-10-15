@@ -36,8 +36,9 @@ export const BRIDGE_URLS: Record<string, string> = {
   orbiter: "https://www.orbiter.finance/bridge",
   "orbiter finance": "https://www.orbiter.finance/bridge",
 
-  // LayerZero (via Stargate)
-  layerzero: "https://lz.superbridge.app/",
+  // deBridge DLN
+  debridge: "https://app.debridge.finance/",
+  "debridge dln": "https://app.debridge.finance/",
 
   // Wormhole
   wormhole: "https://portalbridge.com/",
@@ -86,6 +87,16 @@ export const BRIDGE_REFERRAL_CONFIG: Record<
     paramName: "ref",
     referralCode: "bridgerouter", // TODO: Replace with your actual referral code
     enabled: false, // Set to true once approved
+  },
+
+  // deBridge Points Program
+  // Generate your referral code at: https://app.debridge.finance/refer
+  // Track your points at: https://explorer.debridge.finance/statistic/
+  // Documentation: https://docs.debridge.finance/the-debridge-protocol/debridge-points-program
+  debridge: {
+    paramName: "referralCode",
+    referralCode: process.env.PUBLIC_DEBRIDGE_REFERRAL_CODE || "", // Set in .env as PUBLIC_DEBRIDGE_REFERRAL_CODE
+    enabled: !!process.env.PUBLIC_DEBRIDGE_REFERRAL_CODE, // Auto-enabled if referral code is set
   },
 };
 
