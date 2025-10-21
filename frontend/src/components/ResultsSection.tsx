@@ -28,14 +28,21 @@ export function ResultsSection({
     if (routes.length > 0) {
       toast.success(`Found ${routes.length} route${routes.length > 1 ? "s" : ""} available!`);
 
-      // Scroll to results section smoothly
-      setTimeout(() => {
-        sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+      // Scroll to results section smoothly after content is rendered
+      // Delay accounts for FadeIn animation (0.2s) + StaggerContainer animations
+      const scrollTimer = setTimeout(() => {
+        sectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+          inline: "nearest",
+        });
+      }, 500);
+
+      return () => clearTimeout(scrollTimer);
     } else {
       toast.error("No routes found for this combination");
     }
-  }, [routes]);
+  }, [routes.length]); // Changed dependency to routes.length to ensure it triggers on data changes
 
   return (
     <FadeIn delay={0.2}>
