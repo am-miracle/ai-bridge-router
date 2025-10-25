@@ -31,24 +31,13 @@ pub async fn init_pg_pool_with_config(settings: &Settings) -> AppResult<PgPool> 
 
 /// Run database migrations
 async fn run_migrations(pool: &PgPool) -> AppResult<()> {
-    // Create migrations table if it doesn't exist
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS _sqlx_migrations (
-            version BIGINT PRIMARY KEY,
-            description TEXT NOT NULL,
-            installed_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            success BOOLEAN NOT NULL,
-            checksum BYTEA NOT NULL,
-            execution_time BIGINT NOT NULL
-        );
-        "#,
-    )
-    .execute(pool)
-    .await?;
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+        .map_err(|e| {
+            crate::utils::errors::AppError::internal(format!("Migration failed: {}", e))
+        })?;
 
-    // For now, we'll just log that migrations are ready
-    // sqlx::migrate!() here
     info!("Database migrations completed successfully");
     Ok(())
 }

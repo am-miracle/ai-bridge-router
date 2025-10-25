@@ -95,8 +95,8 @@ export const BRIDGE_REFERRAL_CONFIG: Record<
   // Documentation: https://docs.debridge.finance/the-debridge-protocol/debridge-points-program
   debridge: {
     paramName: "referralCode",
-    referralCode: process.env.PUBLIC_DEBRIDGE_REFERRAL_CODE || "", // Set in .env as PUBLIC_DEBRIDGE_REFERRAL_CODE
-    enabled: !!process.env.PUBLIC_DEBRIDGE_REFERRAL_CODE, // Auto-enabled if referral code is set
+    referralCode: import.meta.env.PUBLIC_DEBRIDGE_REFERRAL_CODE || "", // Set in .env as PUBLIC_DEBRIDGE_REFERRAL_CODE
+    enabled: !!import.meta.env.PUBLIC_DEBRIDGE_REFERRAL_CODE, // Auto-enabled if referral code is set
   },
 };
 

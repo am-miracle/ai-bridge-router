@@ -225,6 +225,54 @@ fn convert_to_quote_response(
     }
 }
 
+/// Get gas price with caching (30 second TTL)
+async fn get_gas_price_cached(app_state: &Arc<AppState>, chain: &str) -> Result<GasPrice, String> {
+    let cache_key = format!("gas_price:{}", chain.to_lowercase());
+
+    // Try to get from cache first
+    if let Ok(Some(cached)) = app_state.cache().get_cache::<GasPrice>(&cache_key).await {
+        return Ok(cached);
+    }
+
+    // Cache miss - fetch from service
+    let gas_price = app_state.gas_price_service().get_gas_price(chain).await?;
+
+    // Store in cache with 30 second TTL
+    let _ = app_state
+        .cache()
+        .set_cache(&cache_key, &gas_price, 30)
+        .await;
+
+    Ok(gas_price)
+}
+
+/// Get token price with caching (30 second TTL)
+async fn get_token_price_cached(
+    app_state: &Arc<AppState>,
+    token: &str,
+) -> Result<TokenPrice, String> {
+    let cache_key = format!("token_price:{}", token.to_uppercase());
+
+    // Try to get from cache first
+    if let Ok(Some(cached)) = app_state.cache().get_cache::<TokenPrice>(&cache_key).await {
+        return Ok(cached);
+    }
+
+    // Cache miss - fetch from service
+    let token_price = app_state
+        .token_price_service()
+        .get_token_price(token)
+        .await?;
+
+    // Store in cache with 30 second TTL
+    let _ = app_state
+        .cache()
+        .set_cache(&cache_key, &token_price, 30)
+        .await;
+
+    Ok(token_price)
+}
+
 /// Process quotes with security metadata and gas prices
 async fn process_quotes_with_security(
     bridge_quotes: &[BridgeQuote],
@@ -234,21 +282,15 @@ async fn process_quotes_with_security(
     // Get bridge names for security metadata lookup
     let bridge_names: Vec<String> = bridge_quotes.iter().map(|q| q.bridge.clone()).collect();
 
-    // Fetch security metadata, gas prices, and token price in parallel
+    // Fetch security metadata, gas prices, and token price in parallel with caching
     let (security_result, source_gas_result, dest_gas_result, token_price_result) = tokio::join!(
         timeout(
             Duration::from_secs(10),
             SecurityRepository::get_batch_security_metadata(app_state.db(), &bridge_names),
         ),
-        app_state
-            .gas_price_service()
-            .get_gas_price(&params.from_chain),
-        app_state
-            .gas_price_service()
-            .get_gas_price(&params.to_chain),
-        app_state
-            .token_price_service()
-            .get_token_price(&params.token),
+        get_gas_price_cached(app_state, &params.from_chain),
+        get_gas_price_cached(app_state, &params.to_chain),
+        get_token_price_cached(app_state, &params.token),
     );
 
     // Process security metadata
@@ -462,10 +504,10 @@ pub async fn get_quotes(
         slippage: params.slippage,
     };
 
-    // Configure bridge client
-    let config = BridgeClientConfig::new()
+    // Configure bridge client with shared HTTP client
+    let config = BridgeClientConfig::new(app_state.http_client().clone())
         .with_cache(app_state.cache().clone())
-        .with_timeout(Duration::from_secs(10))
+        .with_timeout(Duration::from_secs(15))
         .with_retries(0);
 
     // Fetch quotes from all bridges
@@ -488,12 +530,12 @@ pub async fn get_quotes(
         }
     }
 
-    // If no quotes, try stale cache
+    // If no quotes, we already tried the cache at the beginning
+    // The cache now has a longer TTL so stale data is available if needed
     if quotes.is_empty() {
-        let stale_cache_key = format!("{}_stale", cache_key);
         if let Ok(Some(stale_response)) = app_state
             .cache()
-            .get_cache::<AggregatedQuotesResponse>(&stale_cache_key)
+            .get_cache::<AggregatedQuotesResponse>(&cache_key)
             .await
         {
             warn!("Returning stale cache for key: {}", cache_key);
@@ -517,9 +559,38 @@ pub async fn get_quotes(
     }
 
     // Process quotes with security metadata
-    let routes = process_quotes_with_security(&quotes, &params, &app_state).await;
+    let mut routes = process_quotes_with_security(&quotes, &params, &app_state).await;
 
-    info!("Returning {} routes", routes.len());
+    // Sort routes by best overall value (multi-criteria)
+    // Priority: 1) Available first, 2) Cheapest cost, 3) Highest security, 4) Fastest time
+    routes.sort_by(|a, b| {
+        // First: available routes before unavailable
+        match (a.available, b.available) {
+            (true, false) => return std::cmp::Ordering::Less,
+            (false, true) => return std::cmp::Ordering::Greater,
+            _ => {}
+        }
+
+        // Second: sort by total cost (cheapest first)
+        match a.cost.total_fee_usd.partial_cmp(&b.cost.total_fee_usd) {
+            Some(std::cmp::Ordering::Equal) | None => {}
+            Some(order) => return order,
+        }
+
+        // Third: sort by security score (highest first)
+        match b.security.score.partial_cmp(&a.security.score) {
+            Some(std::cmp::Ordering::Equal) | None => {}
+            Some(order) => return order,
+        }
+
+        // Fourth: sort by estimated time (fastest first)
+        a.timing.seconds.cmp(&b.timing.seconds)
+    });
+
+    info!(
+        "Returning {} routes (sorted: available → cheapest → safest → fastest)",
+        routes.len()
+    );
 
     // Create response
     let response = AggregatedQuotesResponse {
@@ -541,17 +612,11 @@ pub async fn get_quotes(
         },
     };
 
-    // Cache the response (fresh)
+    // Cache the response with longer TTL for stale fallback
+    // This allows us to serve stale data if fresh data is unavailable
     let _ = app_state
         .cache()
-        .set_cache(&cache_key, &response, QUOTE_CACHE_TTL_SECONDS)
-        .await;
-
-    // Cache for stale fallback
-    let stale_cache_key = format!("{}_stale", cache_key);
-    let _ = app_state
-        .cache()
-        .set_cache(&stale_cache_key, &response, MAX_STALE_CACHE_AGE_SECONDS)
+        .set_cache(&cache_key, &response, MAX_STALE_CACHE_AGE_SECONDS)
         .await;
 
     // Return response

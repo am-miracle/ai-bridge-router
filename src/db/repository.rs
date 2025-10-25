@@ -345,7 +345,6 @@ impl SecurityRepository {
         for bridge_name in bridge_names {
             audit_query_builder = audit_query_builder.bind(bridge_name);
         }
-        let audit_results = audit_query_builder.fetch_all(pool).await?;
 
         // Get exploit information for all bridges
         let exploit_query = format!(
@@ -365,7 +364,15 @@ impl SecurityRepository {
         for bridge_name in bridge_names {
             exploit_query_builder = exploit_query_builder.bind(bridge_name);
         }
-        let exploit_results = exploit_query_builder.fetch_all(pool).await?;
+
+        // Execute both queries in parallel
+        let (audit_results, exploit_results) = tokio::join!(
+            audit_query_builder.fetch_all(pool),
+            exploit_query_builder.fetch_all(pool)
+        );
+
+        let audit_results = audit_results?;
+        let exploit_results = exploit_results?;
 
         // Create lookup maps
         let mut audit_map: std::collections::HashMap<String, (i64, Option<String>)> =

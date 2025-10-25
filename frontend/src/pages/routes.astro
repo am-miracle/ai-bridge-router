@@ -2,7 +2,6 @@
 import MainLayout from "../layouts/main.astro";
 import { HeroSection } from "@/components/HeroSection";
 import { RouteQuoteFormWrapper } from "@/components/RouteQuoteFormWrapper";
-import { ResultsSection } from "@/components/ResultsSection";
 import { EmptyState } from "@/components/EmptyState";
 import { URLUpdater } from "@/components/URLUpdater";
 import { actions, isInputError } from "astro:actions";
@@ -60,21 +59,12 @@ if (result?.data) {
       actionUrl={actions.getRouteQuote.toString()}
       formData={formDataFromUrl}
       hasResults={!!result?.data?.routes}
-      client:idle
+      initialRoutes={result?.data?.routes || []}
+      initialAmount={result?.data?.amount || ""}
+      initialSourceChain={result?.data?.sourceChain || ""}
+      initialDestinationChain={result?.data?.destinationChain || ""}
+      client:load
     />
-
-    {/* Results Section */}
-    {
-      result && !result.error && result.data && (
-        <ResultsSection
-          routes={result.data.routes}
-          amount={result.data.amount}
-          sourceChain={result.data.sourceChain}
-          destinationChain={result.data.destinationChain}
-          client:load
-        />
-      )
-    }
 
     {!result && <EmptyState client:visible />}
   </div>

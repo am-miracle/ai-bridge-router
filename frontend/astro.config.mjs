@@ -8,10 +8,10 @@ import sitemap from "@astrojs/sitemap";
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://bridgerouter.com",
+  site: "https://bridgerouter.xyz",
   output: "server",
   adapter: vercel({
-    webAnalytics: { enabled: true },
+    webAnalytics: { enabled: process.env.NODE_ENV === "production" },
     imageService: true,
     imagesConfig: {
       sizes: [320, 640, 1280, 1920],
@@ -39,11 +39,7 @@ export default defineConfig({
     react({
       experimentalReactChildren: false,
     }),
-    sitemap({
-      changefreq: "daily",
-      priority: 0.7,
-      lastmod: new Date(),
-    }),
+    sitemap(),
   ],
   image: {
     service: {

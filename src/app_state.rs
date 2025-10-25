@@ -6,7 +6,7 @@ use crate::utils::errors::{AppError, AppResult};
 
 use sqlx::PgPool;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -15,6 +15,7 @@ pub struct AppState {
     pub redis_client: CacheClient,
     pub gas_price_service: Arc<GasPriceService>,
     pub token_price_service: Arc<TokenPriceService>,
+    pub http_client: reqwest::Client,
 }
 
 impl AppState {
@@ -40,12 +41,22 @@ impl AppState {
         let token_price_service =
             Arc::new(TokenPriceService::new(settings.api_keys.coingecko.clone()));
 
+        // Create shared HTTP client with connection pooling
+        let http_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(20))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(Duration::from_secs(90))
+            .user_agent("bridge-router/1.0")
+            .build()
+            .map_err(|e| AppError::config(format!("Failed to create HTTP client: {}", e)))?;
+
         Ok(Self {
             start_time,
             pg_pool,
             redis_client,
             gas_price_service,
             token_price_service,
+            http_client,
         })
     }
 
@@ -72,5 +83,10 @@ impl AppState {
     /// Get token price service reference
     pub fn token_price_service(&self) -> &TokenPriceService {
         &self.token_price_service
+    }
+
+    /// Get shared HTTP client reference
+    pub fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
     }
 }

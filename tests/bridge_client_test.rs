@@ -23,7 +23,8 @@ async fn test_bridge_quote_request_structure() {
 
 #[tokio::test]
 async fn test_bridge_client_config() {
-    let config = BridgeClientConfig::new()
+    let client = reqwest::Client::new();
+    let config = BridgeClientConfig::new(client)
         .with_timeout(std::time::Duration::from_secs(10))
         .with_retries(2);
 
@@ -71,7 +72,8 @@ async fn test_get_all_bridge_quotes_empty_response() {
         slippage: 0.5,
     };
 
-    let config = BridgeClientConfig::new()
+    let client = reqwest::Client::new();
+    let config = BridgeClientConfig::new(client)
         .with_timeout(std::time::Duration::from_secs(1)) // Short timeout
         .with_retries(0); // No retries
 
@@ -108,7 +110,8 @@ async fn test_parallel_execution() {
         slippage: 0.5,
     };
 
-    let config = BridgeClientConfig::new()
+    let client = reqwest::Client::new();
+    let config = BridgeClientConfig::new(client)
         .with_timeout(std::time::Duration::from_secs(5))
         .with_retries(1);
 
@@ -198,7 +201,8 @@ mod performance_tests {
             slippage: 0.5,
         };
 
-        let config = BridgeClientConfig::new()
+        let client = reqwest::Client::new();
+        let config = BridgeClientConfig::new(client)
             .with_timeout(Duration::from_secs(2))
             .with_retries(0);
 
@@ -231,7 +235,8 @@ mod performance_tests {
         };
 
         // Very short timeout to force timeouts
-        let config = BridgeClientConfig::new()
+        let client = reqwest::Client::new();
+        let config = BridgeClientConfig::new(client)
             .with_timeout(Duration::from_millis(1))
             .with_retries(0);
 

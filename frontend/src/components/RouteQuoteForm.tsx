@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getRouteQuotes } from "@/lib/api-client";
+import type { BridgeRoute } from "@/types";
 
 interface Chain {
   id: string;
@@ -42,16 +44,26 @@ interface RouteQuoteFormProps {
     slippage?: string;
   };
   onLoadingChange?: (loading: boolean) => void;
+  onRoutesUpdate?: (routes: BridgeRoute[], formData: any) => void;
 }
+
+// Token address to symbol mapping
+const TOKEN_SYMBOLS: Record<string, string> = {
+  "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE": "ETH",
+  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "USDC",
+  "0xdAC17F958D2ee523a2206206994597C13D831ec7": "USDT",
+  "0x6B175474E89094C44Da98b954EedeAC495271d0F": "DAI",
+  "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": "WBTC",
+};
 
 export function RouteQuoteForm({
   supportedChains,
   commonTokens,
   initialErrors = {},
   actionError,
-  actionUrl,
   formData,
   onLoadingChange,
+  onRoutesUpdate,
 }: RouteQuoteFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -109,23 +121,119 @@ export function RouteQuoteForm({
     }
   }, [initialErrors, actionError]);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
     setIsLoading(true);
     onLoadingChange?.(true);
     toast.loading("Fetching quotes from bridges...", { id: "fetching-quotes" });
 
-    // Add query parameters to URL for shareability
-    const formData = new FormData(e.currentTarget);
-    const params = new URLSearchParams();
-    params.set("sourceChain", formData.get("sourceChain") as string);
-    params.set("destinationChain", formData.get("destinationChain") as string);
-    params.set("tokenAddress", formData.get("tokenAddress") as string);
-    params.set("amount", formData.get("amount") as string);
-    params.set("slippage", (formData.get("slippage") as string) || "0.5");
+    try {
+      // Validate inputs
+      if (!sourceChain || !destinationChain || !tokenAddress || !amount) {
+        toast.dismiss("fetching-quotes");
+        toast.error("Please fill in all required fields");
+        setIsLoading(false);
+        onLoadingChange?.(false);
+        return;
+      }
 
-    // Update URL without triggering navigation
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState({}, "", newUrl);
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        toast.dismiss("fetching-quotes");
+        toast.error("Please enter a valid amount greater than 0");
+        setIsLoading(false);
+        onLoadingChange?.(false);
+        return;
+      }
+
+      if (sourceChain === destinationChain) {
+        toast.dismiss("fetching-quotes");
+        toast.error("Source and destination chains must be different");
+        setIsLoading(false);
+        onLoadingChange?.(false);
+        return;
+      }
+
+      // Get token symbol
+      const tokenSymbol = TOKEN_SYMBOLS[tokenAddress] || "USDC";
+
+      // Add query parameters to URL for shareability
+      const params = new URLSearchParams();
+      params.set("sourceChain", sourceChain);
+      params.set("destinationChain", destinationChain);
+      params.set("tokenAddress", tokenAddress);
+      params.set("amount", amount);
+      params.set("slippage", slippage || "0.5");
+
+      // Update URL without triggering navigation
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, "", newUrl);
+
+      // Call API
+      const response = await getRouteQuotes({
+        from_chain: sourceChain,
+        to_chain: destinationChain,
+        token: tokenSymbol,
+        amount: amountNum,
+        slippage: parseFloat(slippage) || 0.5,
+      });
+
+      toast.dismiss("fetching-quotes");
+
+      if (response.routes && response.routes.length > 0) {
+        toast.success(
+          `Found ${response.routes.length} route${response.routes.length > 1 ? "s" : ""} available!`
+        );
+
+        // Update parent component with routes
+        onRoutesUpdate?.(response.routes, {
+          sourceChain,
+          destinationChain,
+          amount,
+          tokenAddress,
+        });
+
+        // Scroll to results after a short delay
+        setTimeout(() => {
+          const resultsSection = document.querySelector('[aria-labelledby="results-heading"]');
+          resultsSection?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }, 300);
+      } else {
+        toast.error("No routes found for this combination");
+        onRoutesUpdate?.([], {
+          sourceChain,
+          destinationChain,
+          amount,
+          tokenAddress,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching quotes:", error);
+      toast.dismiss("fetching-quotes");
+
+      const errorMessage = error instanceof Error ? error.message : "Failed to fetch quotes";
+
+      // Provide more helpful error messages
+      let userFriendlyMessage = errorMessage;
+      if (errorMessage.includes("Rate limit exceeded")) {
+        userFriendlyMessage = "Too many requests. Please wait a moment and try again.";
+      } else if (errorMessage.includes("No quotes available")) {
+        userFriendlyMessage = "No routes found. Try a different token or chain combination.";
+      } else if (errorMessage.includes("Failed to fetch")) {
+        userFriendlyMessage = "Network error. Please check your connection and try again.";
+      } else if (errorMessage.includes("timeout")) {
+        userFriendlyMessage = "Request timed out. The bridges may be slow. Try again in a moment.";
+      }
+
+      toast.error(userFriendlyMessage);
+    } finally {
+      setIsLoading(false);
+      onLoadingChange?.(false);
+    }
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,15 +270,7 @@ export function RouteQuoteForm({
         className="p-6 rounded-xl border bg-card shadow-lg max-w-lg mx-auto"
         aria-labelledby="quote-form-heading"
       >
-        <form
-          ref={formRef}
-          method="POST"
-          action={actionUrl}
-          onSubmit={(e) => {
-            handleSubmit(e);
-          }}
-          className="space-y-6"
-        >
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           {/* Source Chain */}
           <div className="space-y-2">
             <Label htmlFor="sourceChain">

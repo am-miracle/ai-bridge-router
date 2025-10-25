@@ -107,8 +107,8 @@ impl Settings {
             .set_default("server.port", 8080)?
             .set_default("server.shutdown_timeout_seconds", 30)?
             .set_default("database.url", "")? // Will be loaded from env
-            .set_default("database.max_connections", 10)?
-            .set_default("database.min_connections", 1)?
+            .set_default("database.max_connections", 50)?
+            .set_default("database.min_connections", 5)?
             .set_default("database.connect_timeout_seconds", 30)?
             .set_default("database.idle_timeout_seconds", 600)?
             .set_default("redis.url", "")?

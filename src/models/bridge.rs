@@ -96,14 +96,8 @@ pub struct BridgeClientConfig {
 }
 
 impl BridgeClientConfig {
-    /// Create a new bridge client configuration
-    pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .user_agent("bridge-router/1.0")
-            .build()
-            .expect("Failed to create HTTP client");
-
+    /// Create a new bridge client configuration with a shared HTTP client
+    pub fn new(client: reqwest::Client) -> Self {
         Self {
             client,
             timeout: Duration::from_secs(30),
@@ -128,11 +122,5 @@ impl BridgeClientConfig {
     pub fn with_retries(mut self, retries: u32) -> Self {
         self.retries = retries;
         self
-    }
-}
-
-impl Default for BridgeClientConfig {
-    fn default() -> Self {
-        Self::new()
     }
 }

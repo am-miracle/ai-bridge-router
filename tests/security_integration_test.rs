@@ -503,6 +503,14 @@ mod security_integration_tests {
                 panic!("Cannot create cache client for tests - Redis not available")
             });
 
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .user_agent("bridge-router/1.0")
+            .build()
+            .expect("Failed to create HTTP client");
+
         AppState {
             start_time: Instant::now(),
             pg_pool: pool,
@@ -513,6 +521,7 @@ mod security_integration_tests {
             token_price_service: std::sync::Arc::new(
                 bridge_router::services::TokenPriceService::new(None),
             ),
+            http_client,
         }
     }
 }

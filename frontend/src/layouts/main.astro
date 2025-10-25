@@ -33,6 +33,7 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
     <meta name="author" content={siteConfig.author} />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href={canonicalURL} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -120,9 +121,6 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
     <!-- Prefetch next likely pages -->
     <link rel="prefetch" href="/routes" />
 
-    <!-- Preload critical React chunks -->
-    <link rel="modulepreload" href="/_astro/client.js" />
-
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
@@ -164,7 +162,13 @@ const ogImage = new URL(siteConfig.ogImage, siteConfig.url);
 
     {/* Service Worker for PWA and Caching */}
     <ServiceWorkerRegistration client:idle />
-    <Analytics />
-    <SpeedInsights />
+    {
+      import.meta.env.PROD && (
+        <>
+          <Analytics />
+          <SpeedInsights />
+        </>
+      )
+    }
   </body>
 </html>
